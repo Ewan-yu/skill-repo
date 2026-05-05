@@ -1,17 +1,15 @@
 // 微信公众号文章内容提取脚本
 // 用法：agent-browser eval --stdin < scripts/extract_content.js
-// 需要先设置 urlMap 变量（从目录索引文件构建）
+// 需要先通过 agent-browser eval 注入 urlMap：
+//   agent-browser eval "window.__urlMap = { URL: { path: '系列/01_文章名', title: '文章标题' } }"
 
 (async function() {
   const el = document.querySelector("#js_content");
-  if (!el) return "No content found";
+  if (!el) return JSON.stringify({ error: "No content found", hint: "页面可能未加载完成或结构已变化" });
 
-  // URL映射表（在实际使用时应从目录索引文件动态构建）
-  // 格式：URL -> 本地文件路径（不含.md后缀）
-  // 示例：
-  // const urlMap = {
-  //   "http://mp.weixin.qq.com/s?__biz=xxx&mid=xxx": "系列名/01_文章名",
-  //   "http://mp.weixin.qq.com/s?__biz=xxx&mid=xxx": "系列名/02_文章名"
+  // URL映射表：URL -> { path: 本地文件路径, title: 文章标题 }
+  // 注入示例：window.__urlMap = {
+  //   "http://mp.weixin.qq.com/s?__biz=xxx&mid=123": { path: "系列名/01_文章名", title: "文章标题" }
   // };
   const urlMap = window.__urlMap || {};
 
@@ -120,23 +118,33 @@
           nextSibling.textContent = nextSibling.textContent.substring(1);
         }
 
-        let finalHref = href;
+        // 查找 URL 映射，支持 Obsidian 双链
         const hrefMid = href.match(/mid=(\d+)/)?.[1];
+        let isCollected = false;
+        let linkOutput = "";
 
         if (hrefMid) {
-          for (const [mapUrl, localPath] of Object.entries(urlMap)) {
+          for (const [mapUrl, mapInfo] of Object.entries(urlMap)) {
             const mapMid = mapUrl.match(/mid=(\d+)/)?.[1];
             if (mapMid && hrefMid === mapMid) {
-              finalHref = localPath;
+              // 已采集的文章 → Obsidian 双链 [[标题]]
+              const title = typeof mapInfo === 'object' ? mapInfo.title : linkText;
+              linkOutput = "[[" + title + "]]";
+              isCollected = true;
               break;
             }
           }
         }
 
+        if (!isCollected) {
+          // 未采集的文章 → 标准 Markdown 链接
+          linkOutput = "[" + linkText + "](" + href + ")";
+        }
+
         if (inBlockquote) {
-          result += "> " + prefix + "[" + linkText + "](" + finalHref + ")" + suffix;
+          result += "> " + prefix + linkOutput + suffix;
         } else {
-          result += prefix + "[" + linkText + "](" + finalHref + ")" + suffix;
+          result += prefix + linkOutput + suffix;
         }
       }
       return;
@@ -205,9 +213,11 @@
     }
   }
 
-  walk(el, {});
-
-  result = result.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, '').trim();
-
-  return result;
+  try {
+    walk(el, {});
+    result = result.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, '').trim();
+    return JSON.stringify({ content: result, imgCount: imgIndex });
+  } catch(e) {
+    return JSON.stringify({ error: e.message, hint: "DOM 结构可能已变化，请检查 extract_content.js 是否需要更新" });
+  }
 })();

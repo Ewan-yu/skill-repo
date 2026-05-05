@@ -1,5 +1,14 @@
 # 常见问题排查
 
+## 脚本返回错误或空内容
+
+所有脚本现在返回 JSON 格式，包含 `error` 字段（如有错误）。检查返回的 JSON：
+- `extract_content.js` 返回 `{"error": "...", "content": ""}` → 页面可能未加载完成或结构已变化
+- `extract_images.js` 返回 `{"error": "...", "images": []}` → #js_content 不存在
+- `extract_metadata.js` 返回 `{"error": "未能提取标题"}` → 页面结构已变化
+
+处理方式：重新滚动页面等待加载，或检查选择器是否需要更新。
+
 ## 图片位置不正确
 
 确保使用 `scripts/extract_content.js` 的 TreeWalker 代码提取内容，而不是简单的 `innerText`。TreeWalker 方法按 DOM 顺序遍历，能精确保留图片在原文中的位置。
@@ -34,6 +43,17 @@
 ## 中文路径问题
 
 图片文件夹使用 `序号_拼音首字母` 格式避免中文路径识别问题。
+
+## Obsidian 双链未生效
+
+**症状**：文章中的内链显示为 `[链接文字](URL)` 而非 `[[文章标题]]`。
+
+**原因**：`window.__urlMap` 未正确注入，或文章的 `mid` 参数不在映射表中。
+
+**处理**：
+1. 检查 `urlMap` 是否已注入：`agent-browser eval "JSON.stringify(window.__urlMap)"`
+2. 确认目标文章已在目录索引中标记为 `✅ 已采集`
+3. 确认 urlMap 的 key 是完整的微信 URL（包含 `mid=` 参数）
 
 ## 断点续采
 
