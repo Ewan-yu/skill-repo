@@ -1,0 +1,228 @@
+{
+  "skill_name": "cn-stock-analysis",
+  "evals": [
+    {
+      "id": 1,
+      "name": "单股深度分析-贵州茅台",
+      "prompt": "帮我分析一下贵州茅台（600519）这只股票值不值得投资？最近价格挺高的，想了解一下它的基本面怎么样。",
+      "expected_output": "一份结构化的Markdown分析报告，包含：1)总体评分和评级 2)四不碰原则检查 3)8个核心财务指标分析 4)资产负债表分析 5)估值分析 6)投资建议。报告应使用cn-financial MCP工具获取数据，分析贵州茅台的现金收入比、ROE、毛利率等关键指标。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "包含报告头部信息",
+          "type": "content_check",
+          "expected": "报告应包含：分析日期、股票代码(600519)、所属行业、数据来源",
+          "check_method": "regex",
+          "pattern": "股票代码.*600519"
+        },
+        {
+          "name": "包含总体评级",
+          "type": "content_check",
+          "expected": "报告应包含总体评级（A+/A/B+/B/C）和分数",
+          "check_method": "regex",
+          "pattern": "总体评级.*[ABC][++]?.*\\d+分"
+        },
+        {
+          "name": "包含四不碰检查",
+          "type": "content_check",
+          "expected": "报告应包含四不碰原则检查结果表格",
+          "check_method": "regex",
+          "pattern": "四不碰|快速排雷"
+        },
+        {
+          "name": "包含8个核心指标",
+          "type": "content_check",
+          "expected": "报告应分析现金收入比、ROE、人均创收、总资产周转率、季度增长率、商誉比、毛利率、研发占比这8个指标",
+          "check_method": "keyword_count",
+          "keywords": ["现金收入比", "ROE", "人均", "资产周转率", "季度", "商誉", "毛利率", "研发"],
+          "min_count": 6
+        },
+        {
+          "name": "包含行业分析",
+          "type": "content_check",
+          "expected": "报告应包含行业定位和行业景气度分析",
+          "check_method": "keyword_exists",
+          "keywords": ["行业", "白酒"]
+        },
+        {
+          "name": "包含估值分析",
+          "type": "content_check",
+          "expected": "报告应包含PE、PB等估值分析和历史分位",
+          "check_method": "regex",
+          "pattern": "估值|PE|PB"
+        },
+        {
+          "name": "包含投资建议",
+          "type": "content_check",
+          "expected": "报告应明确给出投资建议（买入/持有/观望/卖出）",
+          "check_method": "regex",
+          "pattern": "投资建议|建议操作"
+        },
+        {
+          "name": "数据来源标注",
+          "type": "content_check",
+          "expected": "报告应标注数据来源（cn-financial MCP或妙想Skills）",
+          "check_method": "regex",
+          "pattern": "数据来源|cn-financial|妙想"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "持仓股票评估",
+      "prompt": "我手里持有格力电器（000651）和美的集团（000333），帮我评估一下这两家公司现在的投资价值怎么样？要不要继续持有？",
+      "expected_output": "两份分别的分析报告，每份包含完整的8指标分析。最后应有对比总结，给出持有/卖出建议。可以使用cn-financial MCP获取两家公司的财务数据进行对比。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "分析两只股票",
+          "type": "content_check",
+          "expected": "应分析格力电器(000651)和美的集团(000333)两只股票",
+          "check_method": "regex",
+          "pattern": "000651|格力电器"
+        },
+        {
+          "name": "包含对比分析",
+          "type": "content_check",
+          "expected": "应包含两家公司的对比分析",
+          "check_method": "keyword_exists",
+          "keywords": ["对比", "美的", "格力"]
+        },
+        {
+          "name": "给出持有建议",
+          "type": "content_check",
+          "expected": "应明确给出持有/卖出建议",
+          "check_method": "regex",
+          "pattern": "持有|卖出|继续持有"
+        },
+        {
+          "name": "每只股票包含8指标",
+          "type": "content_check",
+          "expected": "每只股票都应分析核心财务指标",
+          "check_method": "keyword_count",
+          "keywords": ["现金收入比", "ROE", "毛利率", "估值"],
+          "min_count": 3
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "批量股票筛选",
+      "prompt": "帮我筛选一下这些股票怎么样：海康威视（002415）、立讯精密（002475）、宁德时代（300750）、比亚迪（002594）、药明康德（603259）。我想从中挑1-2只长期持有。",
+      "expected_output": "首先输出汇总对比表（包含股票代码、名称、总分、评级、核心亮点、主要风险），然后按优先级输出详细报告（A级以上详细分析，B级简要分析，C级仅说明风险），最后给出筛选结论和建议关注的前3只。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "分析所有5只股票",
+          "type": "content_check",
+          "expected": "应分析全部5只股票：海康威视、立讯精密、宁德时代、比亚迪、药明康德",
+          "check_method": "keyword_count",
+          "keywords": ["002415", "002475", "300750", "002594", "603259"],
+          "min_count": 5
+        },
+        {
+          "name": "包含汇总对比表",
+          "type": "content_check",
+          "expected": "应输出汇总对比表，包含代码、名称、总分、评级、核心亮点、主要风险",
+          "check_method": "keyword_exists",
+          "keywords": ["汇总", "对比表", "总分", "评级", "核心亮点", "主要风险"]
+        },
+        {
+          "name": "按评级优先级输出",
+          "type": "content_check",
+          "expected": "应按优先级输出报告（A级详细，B级简要，C级仅说明风险）",
+          "check_method": "regex",
+          "pattern": "推荐|筛选结论"
+        },
+        {
+          "name": "给出前3只建议",
+          "type": "content_check",
+          "expected": "应明确建议关注的前3只股票",
+          "check_method": "keyword_exists",
+          "keywords": ["推荐关注", "前3", "建议"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "财务排雷检查",
+      "prompt": "乐视网现在好像退市了，你帮我分析一下它当初财务上有什么问题？用你们的分析方法看看能不能找出这些雷。",
+      "expected_output": "使用8个指标和四不碰原则分析乐视网的历史财务数据，指出哪些指标异常、触犯了哪些排雷原则，说明这些问题是如何反映在财务数据中的，展示这套方法如何帮助投资者识别风险公司。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "使用四不碰原则",
+          "type": "content_check",
+          "expected": "应使用四不碰原则检查乐视网",
+          "check_method": "keyword_exists",
+          "keywords": ["四不碰", "排雷", "乐视"]
+        },
+        {
+          "name": "指出异常指标",
+          "type": "content_check",
+          "expected": "应指出哪些财务指标异常",
+          "check_method": "regex",
+          "pattern": "异常|问题|风险"
+        },
+        {
+          "name": "说明如何识别风险",
+          "type": "content_check",
+          "expected": "应说明如何通过财务数据识别风险",
+          "check_method": "keyword_exists",
+          "keywords": ["识别", "风险", "方法"]
+        },
+        {
+          "name": "给出预警信号",
+          "type": "content_check",
+          "expected": "应指出哪些指标可以作为预警信号",
+          "check_method": "regex",
+          "pattern": "预警|信号|警惕"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "用户已有数据分析",
+      "prompt": "我下载了东方财富的年报，看到几个数据：营收31亿，净利润9.6亿，ROE是6.3%。你帮我分析一下这家公司怎么样？还需要什么其他数据吗？",
+      "expected_output": "基于用户提供的数据进行初步分析，指出当前数据能得出什么结论、不能得出什么结论。明确说明缺失哪些关键数据（如现金收入比、历史趋势等），建议用户补充哪些数据才能完成完整的8指标分析。",
+      "files": [],
+      "assertions": [
+        {
+          "name": "基于用户数据进行分析",
+          "type": "content_check",
+          "expected": "应基于用户提供的营收31亿、净利润9.6亿、ROE 6.3%进行分析",
+          "check_method": "regex",
+          "pattern": "31亿|9.6亿|6.3%"
+        },
+        {
+          "name": "说明能得出的结论",
+          "type": "content_check",
+          "expected": "应说明当前数据能得出什么结论",
+          "check_method": "regex",
+          "pattern": "结论|可以看出|显示"
+        },
+        {
+          "name": "说明缺失的数据",
+          "type": "content_check",
+          "expected": "应明确说明缺失哪些关键数据",
+          "check_method": "regex",
+          "pattern": "缺失|需要|补充"
+        },
+        {
+          "name": "建议补充数据",
+          "type": "content_check",
+          "expected": "应建议用户补充哪些数据",
+          "check_method": "keyword_exists",
+          "keywords": ["建议", "补充", "现金收入比", "历史"]
+        },
+        {
+          "name": "标注数据局限性",
+          "type": "content_check",
+          "expected": "应说明当前数据的局限性",
+          "check_method": "regex",
+          "pattern": "局限|不足|无法"
+        }
+      ]
+    }
+  ]
+}
