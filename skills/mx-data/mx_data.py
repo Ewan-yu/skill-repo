@@ -5,8 +5,14 @@
 
 import os
 import sys
+import io
 import json
 import re
+
+# Windows 终端 UTF-8 编码支持
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 import pandas as pd
 import requests
 from pathlib import Path
@@ -302,7 +308,9 @@ class MXData:
         with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
             for table in tables:
                 df = pd.DataFrame(table["rows"], columns=table["fieldnames"])
-                df.to_excel(writer, sheet_name=table["sheet_name"], index=False)
+                # Excel sheet 名称最长 31 个字符
+                sheet_name = table["sheet_name"][:31]
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
         
         # Write description file
         description_lines = [

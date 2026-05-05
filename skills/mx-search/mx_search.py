@@ -5,11 +5,17 @@
 
 import os
 import sys
+import io
 import json
 import re
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+
+# Windows 终端 UTF-8 编码支持
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def safe_filename(text: str, max_len: int = 80) -> str:
     """Convert query string to safe filenameh"""

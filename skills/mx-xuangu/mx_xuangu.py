@@ -4,6 +4,7 @@
 
 import os
 import sys
+import io
 import json
 import csv
 import re
@@ -11,6 +12,11 @@ import argparse
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
+
+# Windows 终端 UTF-8 编码支持
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def safe_filename(s: str, max_len: int = 80) -> str:
     """将查询文本转为安全文件名片段"""

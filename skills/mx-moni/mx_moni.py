@@ -3,10 +3,16 @@
 
 import os
 import sys
+import io
 import json
 import re
 import requests
 from typing import Dict, Any, Optional, Tuple
+
+# Windows 终端 UTF-8 编码支持
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 加载环境变量
 MX_APIKEY = os.environ.get('MX_APIKEY')
