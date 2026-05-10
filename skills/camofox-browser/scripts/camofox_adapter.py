@@ -7,20 +7,21 @@ Wraps camofox-browser HTTP API for general-purpose browser automation.
 Auto-installs, manages service, handles screenshots, login flows, and page interaction.
 
 Usage:
-    python3 camofox_adapter.py init                  # auto-install & start camofox-browser
-    python3 camofox_adapter.py open <URL>            # create tab, navigate to URL
-    python3 camofox_adapter.py screenshot <TAB_ID>   # capture screenshot, save & open
-    python3 camofox_adapter.py click <TAB_ID>        # click element by selector or text
-    python3 camofox_adapter.py type <TAB_ID>         # type into input field
-    python3 camofox_adapter.py wait <TAB_ID>         # wait for element or URL change
-    python3 camofox_adapter.py scroll <TAB_ID>       # irregular scroll (simulate human)
-    python3 camofox_adapter.py eval <TAB_ID> <SCRIPT> # execute JS in page
-    python3 camofox_adapter.py snapshot <TAB_ID>     # accessibility snapshot
-    python3 camofox_adapter.py images <TAB_ID>       # list page images
-    python3 camofox_adapter.py links <TAB_ID>        # list page links
-    python3 camofox_adapter.py close <TAB_ID>        # close tab
-    python3 camofox_adapter.py close-all             # close all tabs
-    python3 camofox_adapter.py health                # check health
+    python camofox_adapter.py init                    # auto-install & start camofox-browser
+    python camofox_adapter.py open <URL>              # create tab, navigate to URL
+    python camofox_adapter.py navigate <TAB_ID> <URL> # navigate existing tab to URL
+    python camofox_adapter.py screenshot <TAB_ID>     # capture screenshot, save & open
+    python camofox_adapter.py click <TAB_ID>          # click element by selector or text
+    python camofox_adapter.py type <TAB_ID>           # type into input field
+    python camofox_adapter.py wait <TAB_ID>           # wait for element or URL change
+    python camofox_adapter.py scroll <TAB_ID>         # irregular scroll (simulate human)
+    python camofox_adapter.py eval <TAB_ID> <SCRIPT>  # execute JS in page
+    python camofox_adapter.py snapshot <TAB_ID>       # accessibility snapshot
+    python camofox_adapter.py images <TAB_ID>         # list page images
+    python camofox_adapter.py links <TAB_ID>          # list page links
+    python camofox_adapter.py close <TAB_ID>          # close tab
+    python camofox_adapter.py close-all               # close all tabs
+    python camofox_adapter.py health                  # check health
 """
 
 import argparse
@@ -221,6 +222,17 @@ def cmd_open(url, user_id=DEFAULT_USER_ID, session_key=DEFAULT_SESSION_KEY):
     return tab_id
 
 
+def cmd_navigate(tab_id, url, user_id=DEFAULT_USER_ID):
+    """Navigate an existing tab to a new URL without closing it."""
+    js = f"location.href = {json.dumps(url)}; true"
+    result = _http("POST", f"/tabs/{tab_id}/evaluate", {
+        "userId": user_id, "expression": js,
+    }, timeout=30)
+    if not result.get("ok"):
+        raise SystemExit(f"Navigate failed: {json.dumps(result, ensure_ascii=False)}")
+    _progress(f"navigating to {url}")
+
+
 def cmd_screenshot(tab_id, output=None, view=False, user_id=DEFAULT_USER_ID):
     """Capture screenshot as PNG, save to file, optionally open for viewing."""
     data = _http_raw(f"/tabs/{tab_id}/screenshot?userId={user_id}", timeout=30)
@@ -241,34 +253,45 @@ def cmd_screenshot(tab_id, output=None, view=False, user_id=DEFAULT_USER_ID):
         elif sys.platform == "darwin":
             subprocess.Popen(["open", output])
         else:
-            subprocess.Popen(["xdg-open", output])
+            # Try common viewers; fall back to printing path if none available
+            for viewer in ["xdg-open", "eog", "display"]:
+                if shutil.which(viewer):
+                    subprocess.Popen([viewer, output])
+                    break
+            else:
+                _progress(f"No image viewer found. Screenshot saved to: {output}")
 
     print(output)
     return output
 
 
 def cmd_click(tab_id, selector=None, text=None, user_id=DEFAULT_USER_ID):
-    """Click an element by CSS selector or text content."""
+    """Click an element by CSS selector or visible text content."""
     if selector:
         js = f'''(() => {{
             const el = document.querySelector({json.dumps(selector)});
-            if (!el) throw "Element not found: {selector}";
+            if (!el) throw new Error("Element not found: {selector}");
             el.scrollIntoView({{block: "center"}});
             el.click();
             return true;
         }})()'''
     elif text:
+        # Find the most specific interactive element containing the text
         js = f'''(() => {{
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-            while (walker.nextNode()) {{
-                if (walker.currentNode.textContent.includes({json.dumps(text)})) {{
-                    const el = walker.currentNode.parentElement;
-                    el.scrollIntoView({{block: "center"}});
-                    el.click();
-                    return true;
-                }}
-            }}
-            throw "No element containing text: {text}";
+            const target = {json.dumps(text)};
+            const candidates = Array.from(document.querySelectorAll(
+                'button, a, [role="button"], [role="link"], input[type="submit"], label, span, div'
+            )).filter(el => el.textContent.trim().includes(target) && el.offsetParent !== null);
+            if (!candidates.length) throw new Error("No visible element containing text: " + target);
+            // Prefer interactive elements
+            const interactive = candidates.find(el =>
+                ['BUTTON','A','INPUT','LABEL'].includes(el.tagName) ||
+                el.getAttribute('role') === 'button'
+            );
+            const el = interactive || candidates[0];
+            el.scrollIntoView({{block: "center"}});
+            el.click();
+            return el.tagName + ": " + el.textContent.trim().substring(0, 50);
         }})()'''
     else:
         raise SystemExit("Must specify --selector or --text")
@@ -278,14 +301,14 @@ def cmd_click(tab_id, selector=None, text=None, user_id=DEFAULT_USER_ID):
     }, timeout=30)
     if not result.get("ok"):
         raise SystemExit(f"Click failed: {json.dumps(result, ensure_ascii=False)}")
-    _progress("clicked")
+    _progress(f"clicked: {result.get('result', '')}")
 
 
 def cmd_type(tab_id, selector, value, user_id=DEFAULT_USER_ID):
-    """Type text into an input field, compatible with React/Vue frameworks."""
+    """Type text into an input field, compatible with React/Vue/Angular frameworks."""
     js = f'''(() => {{
         const el = document.querySelector({json.dumps(selector)});
-        if (!el) throw "Element not found: {selector}";
+        if (!el) throw new Error("Element not found: {selector}");
         el.scrollIntoView({{block: "center"}});
         el.focus();
         el.value = "";
@@ -377,15 +400,15 @@ def cmd_eval(tab_id, script_or_expr, user_id=DEFAULT_USER_ID):
         raise SystemExit(f"JS eval failed: {json.dumps(result, ensure_ascii=False)}")
 
     raw = result.get("result")
+    # Return the value as-is when possible; only wrap plain strings
+    if isinstance(raw, (dict, list, bool, int, float)):
+        return raw
     if isinstance(raw, str):
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            return {"content": raw, "imgCount": 0}
-    elif isinstance(raw, (dict, list)):
-        return raw if isinstance(raw, dict) else {"result": raw}
-    else:
-        return {"content": str(raw), "imgCount": 0}
+            return raw
+    return raw
 
 
 def cmd_images(tab_id, user_id=DEFAULT_USER_ID):
@@ -445,6 +468,10 @@ def main():
     p.add_argument("url", help="URL to open")
     p.add_argument("--session-key", default=DEFAULT_SESSION_KEY)
 
+    p = sub.add_parser("navigate", help="navigate existing tab to new URL")
+    p.add_argument("tab_id")
+    p.add_argument("url", help="URL to navigate to")
+
     p = sub.add_parser("screenshot", help="capture screenshot")
     p.add_argument("tab_id")
     p.add_argument("--output", "-o", default=None, help="Output file path")
@@ -453,7 +480,7 @@ def main():
     p = sub.add_parser("click", help="click element")
     p.add_argument("tab_id")
     p.add_argument("--selector", "-s", default=None, help="CSS selector")
-    p.add_argument("--text", "-t", default=None, help="Text content to find and click")
+    p.add_argument("--text", "-t", default=None, help="Visible text to find and click")
 
     p = sub.add_parser("type", help="type into input field")
     p.add_argument("tab_id")
@@ -463,13 +490,13 @@ def main():
     p = sub.add_parser("wait", help="wait for condition")
     p.add_argument("tab_id")
     p.add_argument("--selector", "-s", default=None, help="Wait for element")
-    p.add_argument("--url-pattern", "-u", default=None, help="Wait for URL pattern")
+    p.add_argument("--url-pattern", "-u", default=None, help="Wait for URL pattern (regex)")
     p.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
 
     p = sub.add_parser("scroll", help="scroll page")
     p.add_argument("tab_id")
     p.add_argument("--direction", default="down", choices=["up", "down"])
-    p.add_argument("--amount", type=int, default=0, help="Pixels, 0=random")
+    p.add_argument("--amount", type=int, default=0, help="Pixels, 0=random human-like")
 
     p = sub.add_parser("eval", help="execute JS")
     p.add_argument("tab_id")
@@ -500,6 +527,9 @@ def main():
     if args.command == "open":
         print(cmd_open(args.url, user_id=user_id, session_key=args.session_key))
         return 0
+    if args.command == "navigate":
+        cmd_navigate(args.tab_id, args.url, user_id=user_id)
+        return 0
     if args.command == "screenshot":
         cmd_screenshot(args.tab_id, output=args.output, view=args.view, user_id=user_id)
         return 0
@@ -518,7 +548,10 @@ def main():
         return 0
     if args.command == "eval":
         result = cmd_eval(args.tab_id, args.script, user_id=user_id)
-        print(json.dumps(result, ensure_ascii=False))
+        if isinstance(result, str):
+            print(result)
+        else:
+            print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.command == "images":
         print(json.dumps(cmd_images(args.tab_id, user_id=user_id), ensure_ascii=False))

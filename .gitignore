@@ -52,3 +52,4 @@ scripts/mx_result.json
 *.bak
 *.backup
 skills/mx-xuangu/output/
+auth_states
