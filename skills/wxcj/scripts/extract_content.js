@@ -127,9 +127,14 @@
           for (const [mapUrl, mapInfo] of Object.entries(urlMap)) {
             const mapMid = mapUrl.match(/mid=(\d+)/)?.[1];
             if (mapMid && hrefMid === mapMid) {
-              // 已采集的文章 → Obsidian 双链 [[标题]]
+              // 已采集的文章 → Obsidian 双链 [[文件名|显示标题]]
               const title = typeof mapInfo === 'object' ? mapInfo.title : linkText;
-              linkOutput = "[[" + title + "]]";
+              const path = typeof mapInfo === 'object' ? mapInfo.path : '';
+              if (path) {
+                linkOutput = "[[" + path + "|" + title + "]]";
+              } else {
+                linkOutput = "[[" + title + "]]";
+              }
               isCollected = true;
               break;
             }

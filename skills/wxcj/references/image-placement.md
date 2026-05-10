@@ -138,3 +138,30 @@ agent-browser eval --stdin < scripts/extract_images.js
    # 列出文件中的图片
    grep -o '!\[.*\](assets/[^)]*)' article.md
    ```
+
+4. **逐行对比图片位置**：
+   ```bash
+   # 找出每张图片前后的关键文本
+   python3 << 'EOF'
+   import json
+   
+   with open("script_output.txt", "r", encoding="utf-8") as f:
+       content = f.read()
+   
+   lines = content.split("\n")
+   for i, line in enumerate(lines):
+       if "[IMG_" in line:
+           # 找前一个非空行
+           prev_text = ""
+           for j in range(i-1, max(0, i-5), -1):
+               if lines[j].strip():
+                   prev_text = lines[j].strip()[:60]
+                   break
+           print(f"{line.strip()}: ...{prev_text}")
+   EOF
+   ```
+
+5. **常见问题排查**：
+   - 如果图片数量不一致：检查是否有图片被跳过或重复计算
+   - 如果图片顺序不一致：检查DOM遍历顺序是否正确
+   - 如果图片位置偏移：检查是否有blockquote或其他特殊元素影响了遍历
