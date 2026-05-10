@@ -1,5 +1,17 @@
 # 常见问题排查
 
+## 中文乱码
+
+**症状**：`--help` 或进度输出显示 `???`、`锟斤拷` 等乱码。
+
+**原因**：Windows 终端默认编码不是 UTF-8。
+
+**解决**：
+1. 脚本已内置 `sys.stdout.reconfigure(encoding="utf-8")`，正常情况应自动处理
+2. 如果仍然乱码，在运行前设置环境变量：`set PYTHONUTF8=1`
+3. 或在 PowerShell 中：`$env:PYTHONUTF8="1"`
+4. 进度信息（stderr）为英文，不受影响；JSON 输出（stdout）使用 `ensure_ascii=False` 保留中文
+
 ## camofox-browser 相关
 
 ### 服务未就绪 / 自动安装失败
