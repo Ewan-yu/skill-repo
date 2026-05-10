@@ -1,5 +1,5 @@
 // 提取合集/专辑页面的文章列表
-// 用法：agent-browser eval --stdin < scripts/extract_article_list.js
+// 用法：python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_article_list.js
 
 (function() {
   try {

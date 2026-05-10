@@ -1,5 +1,5 @@
 // 提取文章元数据（标题、作者、日期）
-// 用法：agent-browser eval --stdin < scripts/extract_metadata.js
+// 用法：python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_metadata.js
 
 (function() {
   try {

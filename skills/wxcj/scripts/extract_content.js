@@ -1,7 +1,7 @@
 // 微信公众号文章内容提取脚本
-// 用法：agent-browser eval --stdin < scripts/extract_content.js
-// 需要先通过 agent-browser eval 注入 urlMap：
-//   agent-browser eval "window.__urlMap = { URL: { path: '系列/01_文章名', title: '文章标题' } }"
+// 用法：python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_content.js
+// 如需 URL 映射表（Obsidian 双链）：
+//   python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_content.js --url-map urlmap.json
 
 (async function() {
   const el = document.querySelector("#js_content");
@@ -54,9 +54,20 @@
 
   function addFmtSpaced(prefix, text, suffix) {
     let r = prefix + text + suffix;
-    if (prefix && text && isCJK(text[0]) && !prefix.endsWith(' ')) r = prefix + ' ' + text + suffix;
-    if (suffix && text && isCJK(text[text.length - 1]) && !suffix.startsWith(' ')) r = prefix + text + ' ' + suffix;
+    // 对于加粗格式（**），不添加空格
+    if (prefix !== '**' && prefix !== '~~' && prefix !== '<u>') {
+      if (prefix && text && isCJK(text[0]) && !prefix.endsWith(' ')) r = prefix + ' ' + text + suffix;
+      if (suffix && text && isCJK(text[text.length - 1]) && !suffix.startsWith(' ')) r = prefix + text + ' ' + suffix;
+    }
     return r;
+  }
+
+  // 检查文本是否主要是星号（乘法符号），不应该被处理为斜体
+  function isAsteriskText(text) {
+    if (!text) return false;
+    const trimmed = text.trim();
+    // 匹配：纯星号、星号+数字、数字+星号、星号+百分号等
+    return /^[*×]\d*%?$/.test(trimmed) || /^\d*[*×]%?$/.test(trimmed);
   }
 
   function walk(node, fmt) {
@@ -67,10 +78,11 @@
         if (inBlockquote) {
           text = "> " + text.replace(/\n/g, "\n> ");
         }
-        if (fmt.strike) text = addFmtSpaced("~~", text, "~~");
+        if (fmt.strike) text = addFmtSpaced(" ~~", text, "~~ ");
         if (fmt.underline) text = addFmtSpaced("<u>", text, "</u>");
-        if (fmt.italic) text = addFmtSpaced("*", text, "*");
-        if (fmt.bold) text = addFmtSpaced("**", text, "**");
+        // 只有当文本不是星号（乘法符号）时才应用斜体格式
+        if (fmt.italic && !isAsteriskText(text)) text = addFmtSpaced(" *", text, "* ");
+        if (fmt.bold) text = addFmtSpaced(" **", text, "** ");
         result += text;
       }
       return;

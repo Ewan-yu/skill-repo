@@ -120,9 +120,9 @@ tags:
 
 构建 `window.__urlMap` 注入到页面，用于跨文章链接识别和 Obsidian 双链生成：
 
-```javascript
-// 注入示例
-agent-browser eval "window.__urlMap = JSON.parse('{\"http://mp.weixin.qq.com/s?__biz=xxx&mid=123\": {\"path\": \"系列/01_文章名\", \"title\": \"文章标题\"}}')"
+```bash
+# 将映射表保存为 JSON 文件后，通过 adapter 的 --url-map 参数注入
+python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_content.js --url-map urlmap.json
 ```
 
 **映射规则**：

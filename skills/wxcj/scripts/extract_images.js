@@ -1,5 +1,5 @@
 // 提取文章中所有图片的真实 URL
-// 用法：agent-browser eval --stdin < scripts/extract_images.js
+// 用法：python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_images.js
 
 (function() {
   try {

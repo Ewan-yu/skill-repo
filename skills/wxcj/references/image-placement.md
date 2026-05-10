@@ -10,10 +10,10 @@
 
 ```bash
 # 提取内容（包含 [IMG_N] 占位符）
-agent-browser eval --stdin < scripts/extract_content.js
+python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_content.js
 
 # 提取图片URL
-agent-browser eval --stdin < scripts/extract_images.js
+python3 scripts/camofox_adapter.py eval $TAB_ID scripts/extract_images.js
 ```
 
 **关键点**：
