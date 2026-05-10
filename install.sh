@@ -6,7 +6,7 @@ SKILL_REPO="$(cd "$(dirname "$0")/skills" && pwd)"
 CLAUDE_SKILLS="${HOME}/.claude/skills"
 
 # 技能列表
-SKILLS=(cn-stock-analysis mx-data mx-moni mx-search mx-xuangu mx-zixuan stock-valuation wxcj)
+SKILLS=(camofox-browser cn-stock-analysis mx-data mx-moni mx-search mx-xuangu mx-zixuan stock-valuation wxcj)
 
 echo "安装技能..."
 echo "源目录: $SKILL_REPO"

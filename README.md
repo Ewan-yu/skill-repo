@@ -6,6 +6,7 @@
 
 | 技能名 | 描述 | 版本 |
 |--------|------|------|
+| camofox-browser | 通用浏览器自动化 | 1.0.0 |
 | cn-stock-analysis | A股基本面分析 | 2.2 |
 | mx-data | 东方财富金融数据查询 | 1.0.5 |
 | mx-moni | 模拟组合管理 | 1.0.4 |
@@ -132,6 +133,7 @@ skill-repo/
 ├── scripts/
 │   └── security-scan.sh # 安全扫描脚本
 ├── skills/              # 所有技能存放目录
+│   ├── camofox-browser/
 │   ├── cn-stock-analysis/
 │   ├── mx-data/
 │   ├── mx-moni/

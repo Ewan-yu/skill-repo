@@ -5,7 +5,7 @@ $skillRepo = Join-Path $PSScriptRoot "skills"
 $claudeSkills = Join-Path $env:USERPROFILE ".claude\skills"
 
 # 技能列表
-$skills = @("cn-stock-analysis", "mx-data", "mx-moni", "mx-search",
+$skills = @("camofox-browser", "cn-stock-analysis", "mx-data", "mx-moni", "mx-search",
             "mx-xuangu", "mx-zixuan", "stock-valuation", "wxcj")
 
 Write-Host "安装技能..."
