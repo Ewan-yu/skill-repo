@@ -143,11 +143,13 @@ def _start_camofox_server(repo):
         )
         return
 
+    npm_cmd = shutil.which("npm") or "npm"
     with CAMOFOX_LOG_FILE.open("ab") as log_fp:
         proc = subprocess.Popen(
-            ["npm", "start"], cwd=str(repo),
+            [npm_cmd, "start"], cwd=str(repo),
             stdout=log_fp, stderr=subprocess.STDOUT,
             start_new_session=True, env=env,
+            shell=(os.name == "nt"),
         )
     CAMOFOX_PID_FILE.write_text(str(proc.pid))
 

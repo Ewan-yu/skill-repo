@@ -17,7 +17,7 @@ wxcj/
 ├── scripts/
 │   ├── camofox_adapter.py      # camofox-browser 适配层（自动安装 + HTTP API 封装）
 │   ├── extract_content.js      # 文章内容提取（TreeWalker + 样式保留 + Obsidian 双链）
-│   ├── extract_article_list.js # 合集文章列表提取
+│   ├── extract_article_list.js # 合集文章列表提取（使用 data-link 属性）
 │   ├── extract_images.js       # 图片 URL 提取
 │   └── extract_metadata.js     # 文章元数据提取
 └── references/
@@ -59,11 +59,30 @@ python3 scripts/camofox_adapter.py init
 TAB_ID=$(python3 scripts/camofox_adapter.py open "<合集URL>")
 ```
 
+**合集页面结构**：每个文章是 `<li>` 元素，包含以下关键属性：
+- `data-link`: 文章完整 URL（含 `&amp;` 编码，需解码）
+- `data-title`: 文章标题
+- `data-msgid`: 消息 ID（可用于去重）
+- `data-itemidx`: 序号
+
+示例：
+```html
+<li class="album__list-item js_album_item"
+    data-msgid="2650320567"
+    data-link="http://mp.weixin.qq.com/s?__biz=xxx&amp;mid=xxx&amp;idx=1&amp;sn=xxx"
+    data-title="文章标题"
+    data-is_read="0">
+```
+
 滚动加载全部文章后，使用脚本提取：
 
 ```bash
 python3 scripts/camofox_adapter.py eval "$TAB_ID" scripts/extract_article_list.js
 ```
+
+**返回结果**：JSON 格式，包含 `articles` 数组和 `count`。每篇文章包含 `index`、`title`、`url`、`msgid` 字段。
+
+**断点续采检查**：对比返回的 `count` 与目录索引中已采集数量，确认是否有新增文章。
 
 提取完成后关闭 tab：
 
@@ -71,11 +90,20 @@ python3 scripts/camofox_adapter.py eval "$TAB_ID" scripts/extract_article_list.j
 python3 scripts/camofox_adapter.py close "$TAB_ID"
 ```
 
-### 第二步：创建目录索引
+### 第二步：创建或更新目录索引
 
 在系列文件夹的**上级目录**创建 `系列名_目录索引.md`，模板详见 `references/templates.md`。
 
-**断点续采**：如果目录索引已存在，读取它检查哪些文章状态为 `待采集`，从第一个待采集文章继续，跳过 `✅ 已采集` 的文章。
+**首次创建**：直接从合集提取的文章列表创建目录索引。
+
+**断点续采 / 更新检测**：
+1. 读取现有目录索引，统计已采集数量（`✅ 已采集` 状态）
+2. 对比合集提取的 `count` 与目录索引的 `total`
+3. 如果 `count > total`，说明有新增文章：
+   - 更新目录索引的 `total` 字段
+   - 新增文章条目，状态标记为 `待采集`
+   - 更新 `_urlmap.json` 添加新文章的 URL 映射
+4. 如果目录索引已存在，从第一个 `待采集` 文章继续，跳过 `✅ 已采集` 的文章
 
 ### 第三步：创建文章文件夹结构
 
