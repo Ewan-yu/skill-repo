@@ -1,6 +1,6 @@
-# Claude Code 自定义技能仓库
+# AI 智能体技能仓库
 
-这是一个用于管理 Claude Code 自定义技能的 Git 仓库。所有技能都通过符号链接安装到 `~/.claude/skills/` 目录。
+这是一个用于管理 AI 智能体技能的 Git 仓库。支持多种智能体（Claude Code、Cursor、Windsurf、Cline），提供交互式安装和批量管理功能。
 
 ## 包含的技能
 
@@ -18,19 +18,71 @@
 
 ## 安装方法
 
+### 支持的智能体
+
+| 智能体 | 安装方式 | 目标路径 |
+|--------|----------|----------|
+| Claude Code | 符号链接 | `~/.claude/skills/` |
+| Cursor | 复制规则文件 | `~/.cursor/rules/` |
+| Windsurf | 复制规则文件 | `~/.windsurf/rules/` |
+| Cline | 复制规则文件 | `~/.cline/rules/` |
+
 ### 使用 Git Bash (Windows)
 
 ```bash
 cd ~/.claude/skill-repo
-bash install.sh
+
+# 交互式安装（选择智能体和技能）
+bash install.sh install
+
+# 批量安装特定技能到 Cursor
+bash install.sh install --agent cursor --skills cn-stock-analysis,mx-data
+
+# 安装所有技能到所有智能体
+bash install.sh install --agent all --yes
+
+# 列出可用技能
+bash install.sh scan
+
+# 列出已安装的技能
+bash install.sh list --agent claude-code
+
+# 卸载技能
+bash install.sh uninstall --skills mx-data --agent claude-code
 ```
 
 ### 使用 PowerShell (Windows)
 
 ```powershell
 cd ~\.claude\skill-repo
-.\install.ps1
+
+# 交互式安装
+.\install.ps1 install
+
+# 批量安装
+.\install.ps1 install -Agent cursor -Skills cn-stock-analysis,mx-data
+
+# 安装所有
+.\install.ps1 install -Agent all -Yes
+
+# 列出可用技能
+.\install.ps1 scan
+
+# 列出已安装
+.\install.ps1 list -Agent claude-code
+
+# 卸载
+.\install.ps1 uninstall -Skills mx-data -Agent claude-code
 ```
+
+### 命令行参数
+
+| 参数 | 说明 |
+|------|------|
+| `-a, --agent` | 目标智能体：claude-code, cursor, windsurf, cline, all |
+| `-s, --skills` | 要安装的技能（逗号分隔） |
+| `-y, --yes` | 非交互模式，安装所有技能 |
+| `--dry-run` | 显示将要执行的操作，但不实际执行 |
 
 ## 同步更新
 
@@ -127,9 +179,17 @@ git push origin main --tags
 skill-repo/
 ├── .gitignore           # Git 忽略规则（安全优先）
 ├── README.md            # 本文件
-├── install.sh           # 符号链接安装脚本 (Git Bash)
-├── install.ps1          # 符号链接安装脚本 (PowerShell)
+├── install.sh           # 安装脚本 (Git Bash)
+├── install.ps1          # 安装脚本 (PowerShell)
 ├── sync.sh              # 多设备同步脚本
+├── lib/                 # 共享函数库
+│   ├── common.sh        # Bash 共享函数
+│   ├── common.ps1       # PowerShell 共享函数
+│   └── adapters/        # 智能体适配器
+│       ├── claude-code.sh/.ps1
+│       ├── cursor.sh/.ps1
+│       ├── windsurf.sh/.ps1
+│       └── cline.sh/.ps1
 ├── scripts/
 │   └── security-scan.sh # 安全扫描脚本
 ├── skills/              # 所有技能存放目录

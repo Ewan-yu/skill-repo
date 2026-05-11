@@ -45,6 +45,8 @@ desktop.ini
 # ==================== 运行时产物 ====================
 scripts/mx_result.json
 *.log
+install-config.json
+.install-log
 
 # ==================== 其他敏感文件 ====================
 *.sqlite
