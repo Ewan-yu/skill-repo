@@ -576,8 +576,8 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
         pc = analysis["prev_comparison"]
         lines.append(f"")
         lines.append(f"  【同时段对比】vs {pc.get('prev_date', '前一日')}")
-        lines.append(f"    时段          今日量    前日量   量比   今日额(万) 前日额(万) 额比   趋势")
-        lines.append(f"    ─────────────────────────────────────────────────────────────────────────────")
+        lines.append(f"    {'时段':<12} {'今日量':>10} {'前日量':>10} {'量比':>6} {'今日额(万)':>12} {'前日额(万)':>12} {'额比':>6} {'趋势':<8}")
+        lines.append(f"    {'─'*12} {'─'*10} {'─'*10} {'─'*6} {'─'*12} {'─'*12} {'─'*6} {'─'*8}")
 
         for period_key, period_name in [
             ("open_30min", "早盘30分"),
@@ -591,7 +591,7 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
                 amt_ratio_str = f"{c['amount_ratio']:.2f}" if c.get('amount_ratio') else "N/A"
                 today_amt = c['today_amount'] / 10000
                 prev_amt = c['prev_amount'] / 10000
-                lines.append(f"    {period_name:<12} {c['today_volume']:>8}  {c['prev_volume']:>8}  {vol_ratio_str:>5}  {today_amt:>10.1f}  {prev_amt:>10.1f}  {amt_ratio_str:>5}  {c['trend']}")
+                lines.append(f"    {period_name:<12} {c['today_volume']:>10} {c['prev_volume']:>10} {vol_ratio_str:>6} {today_amt:>12.1f} {prev_amt:>12.1f} {amt_ratio_str:>6} {c['trend']:<8}")
 
     # 承接力分析
     if analysis.get("support_power"):
