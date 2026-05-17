@@ -152,7 +152,8 @@ def analyze_portfolio():
     
     for pos in positions:
         code = pos["code"]
-        result = analyze_stock(code, with_minute=True)
+        float_shares = pos.get("effective_float_shares", 0)
+        result = analyze_stock(code, with_minute=True, float_shares=float_shares)
         
         if "error" in result:
             print(f"\n{code}: {result['error']}")
