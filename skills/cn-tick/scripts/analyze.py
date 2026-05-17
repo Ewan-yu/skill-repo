@@ -543,8 +543,8 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
         pc = analysis["prev_comparison"]
         lines.append(f"")
         lines.append(f"  【同时段对比】vs {pc.get('prev_date', '前一日')}")
-        lines.append(f"    时段              今日量    前日量    量比    趋势")
-        lines.append(f"    ─────────────────────────────────────────────────────")
+        lines.append(f"    时段          今日量    前日量   量比   今日额(万) 前日额(万) 额比   趋势")
+        lines.append(f"    ─────────────────────────────────────────────────────────────────────────────")
 
         for period_key, period_name in [
             ("open_30min", "早盘30分"),
@@ -555,17 +555,45 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
             if period_key in pc:
                 c = pc[period_key]
                 vol_ratio_str = f"{c['volume_ratio']:.2f}" if c['volume_ratio'] else "N/A"
-                lines.append(f"    {period_name:<14} {c['today_volume']:>8}    {c['prev_volume']:>8}    {vol_ratio_str:>6}    {c['trend']}")
+                amt_ratio_str = f"{c['amount_ratio']:.2f}" if c.get('amount_ratio') else "N/A"
+                today_amt = c['today_amount'] / 10000
+                prev_amt = c['prev_amount'] / 10000
+                lines.append(f"    {period_name:<12} {c['today_volume']:>8}  {c['prev_volume']:>8}  {vol_ratio_str:>5}  {today_amt:>10.1f}  {prev_amt:>10.1f}  {amt_ratio_str:>5}  {c['trend']}")
 
     # 承接力分析
     if analysis.get("support_power"):
         sp = analysis["support_power"]
         lines.append(f"")
         lines.append(f"  【承接力判断】")
-        lines.append(f"    价格变动: {sp['price_change_pct']:+.2f}%")
-        lines.append(f"    量比(vs前日同时段): {sp['volume_ratio']:.2f}")
-        lines.append(f"    信号: {sp['signal']}")
-        lines.append(f"    判断: {sp['power']}")
+        lines.append(f"    价格变动: {sp['price_change_pct']:+.2f}%  |  量比: {sp['volume_ratio']:.2f}")
+        lines.append(f"    信号: {sp['signal']}  →  {sp['power']}")
+
+    # 早盘量能预期判断（基于参考资料）
+    if analysis.get("prev_comparison"):
+        pc = analysis["prev_comparison"]
+        if "open_30min" in pc:
+            open_info = pc["open_30min"]
+            lines.append(f"")
+            lines.append(f"  【早盘量能预期】")
+            # 计算早盘30分占全天的比例（基于前一日）
+            if open_info["volume_ratio"]:
+                ratio = open_info["volume_ratio"]
+                if ratio > 1.5:
+                    signal = "放量加速  →  主力强势介入，积极做多"
+                    icon = "🟢"
+                elif ratio > 1.2:
+                    signal = "温和放量  →  资金正常流入"
+                    icon = "🟢"
+                elif ratio > 0.8:
+                    signal = "量能持平  →  多空平衡"
+                    icon = "🟡"
+                elif ratio > 0.5:
+                    signal = "缩量明显  →  主力观望或控盘"
+                    icon = "🟠"
+                else:
+                    signal = "极度缩量  →  资金离场或高度控盘"
+                    icon = "🔴"
+                lines.append(f"    {icon} 早盘额比: {open_info['amount_ratio']:.2f}  |  {signal}")
 
     # 放量时段 TOP 10
     lines.append(f"")
@@ -579,6 +607,45 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
         lines.append(f"  【主力动向判断】")
         for signal in analysis["signals"]:
             lines.append(f"    🔥 {signal}")
+
+    # 综合交易信号
+    lines.append(f"")
+    lines.append(f"  {'='*50}")
+    lines.append(f"  【综合信号】")
+
+    # 收集所有信号
+    all_signals = []
+    if analysis.get("support_power"):
+        sp = analysis["support_power"]
+        if "缩量回调" in sp["signal"]:
+            all_signals.append(("🟢", "承接力强", "缩量回调不破支撑，主力护盘"))
+        elif "放量下跌" in sp["signal"]:
+            all_signals.append(("🔴", "承接力弱", "放量下跌，警惕出货"))
+        elif "放量上涨" in sp["signal"]:
+            all_signals.append(("🟢", "量价配合", "放量上涨，主力做多"))
+        elif "缩量上涨" in sp["signal"]:
+            all_signals.append(("🟡", "量价背离", "缩量上涨，关注后续量能"))
+
+    if analysis.get("prev_comparison") and "open_30min" in analysis["prev_comparison"]:
+        open_ratio = analysis["prev_comparison"]["open_30min"].get("amount_ratio", 1)
+        if open_ratio > 1.3:
+            all_signals.append(("🟢", "早盘放量", "资金加速流入"))
+        elif open_ratio < 0.7:
+            all_signals.append(("🟠", "早盘缩量", "资金观望"))
+
+    for signal in analysis.get("signals", []):
+        if "抢筹" in signal:
+            all_signals.append(("🟢", "主力抢筹", signal))
+        elif "出货" in signal:
+            all_signals.append(("🔴", "主力出货", signal))
+
+    if all_signals:
+        for icon, title, desc in all_signals:
+            lines.append(f"    {icon} {title}: {desc}")
+    else:
+        lines.append(f"    🟡 暂无明显信号，建议观望")
+
+    lines.append(f"  {'='*50}")
 
     return "\n".join(lines)
 
