@@ -1,11 +1,18 @@
 {
-  "owner": "cnyezi",
+  "owner": "Ewan",
   "slug": "cn-tick",
   "displayName": "A股分时量能分析",
   "latest": {
-    "version": "1.0.0",
-    "publishedAt": 1769506981203,
-    "commit": "https://github.com/clawdbot/skills/commit/5b4cb51eb517d942e1c9c3955719b84e23f6f3e5"
+    "version": "2.0.0"
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.0",
+      "description": "初始版本：实时行情、分时量能分析、持仓管理"
+    },
+    {
+      "version": "2.0.0",
+      "description": "增强版本：同时段量能对比、承接力判断、换手率计算"
+    }
+  ]
 }
