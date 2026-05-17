@@ -22,6 +22,8 @@ def safe_filename(s: str, max_len: int = 80) -> str:
     """Convert query string to safe filename """
     s = re.sub(r'[<>:"/\\|?*\[\]]', "_", s)
     s = s.strip().replace(" ", "_")[:max_len]
+    # 防止路径穿越
+    s = re.sub(r'\.{2,}', "_", s)
     return s or "query"
 
 def flatten_value(v: Any) -> str:

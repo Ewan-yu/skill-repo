@@ -20,6 +20,8 @@ if sys.platform == 'win32':
 def safe_filename(text: str, max_len: int = 80) -> str:
     """Convert query string to safe filenameh"""
     cleaned = re.sub(r'[<>:"/\\|?*]', "_", text).strip().replace(" ", "_")
+    # 防止路径穿越
+    cleaned = re.sub(r'\.{2,}', "_", cleaned)
     return (cleaned[:max_len] or "query").strip("._")
 
 class MXSearch:

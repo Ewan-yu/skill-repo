@@ -22,6 +22,8 @@ def safe_filename(s: str, max_len: int = 80) -> str:
     """将查询文本转为安全文件名片段"""
     s = re.sub(r'[<>:"/\\|?*]', "_", s)
     s = s.strip().replace(" ", "_")[:max_len]
+    # 防止路径穿越
+    s = re.sub(r'\.{2,}', "_", s)
     return s or "query"
 
 def build_column_map(columns: List[Dict[str, Any]]) -> Dict[str, str]:
