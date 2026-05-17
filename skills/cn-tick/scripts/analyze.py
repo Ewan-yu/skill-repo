@@ -272,8 +272,26 @@ def analyze_support_power(today_data: list[dict], prev_data: list[dict]) -> dict
     - 涨放量跌缩量 = 健康上涨
     - 涨缩量跌放量 = 主力出货
     """
-    if not today_data or not prev_data:
-        return {"signal": "数据不足，无法判断"}
+    if not today_data:
+        return {"price_change_pct": 0, "volume_ratio": 0, "signal": "数据不足", "power": "无法判断"}
+
+    # 计算今日价格变动
+    today_start = today_data[0]["close"]
+    today_end = today_data[-1]["close"]
+    today_price_change = (today_end - today_start) / today_start * 100
+
+    # 计算今日总量能
+    today_total_vol = sum(d["volume"] for d in today_data if d["volume"] > 0)
+
+    # 如果没有前一日数据，使用今日自身对比
+    if not prev_data:
+        # 使用早盘vs尾盘的量能对比作为参考
+        return {
+            "price_change_pct": round(today_price_change, 2),
+            "volume_ratio": 1.0,
+            "signal": "无前日数据" if today_price_change == 0 else ("上涨" if today_price_change > 0 else "下跌"),
+            "power": "仅基于价格变动判断，无量比参考",
+        }
 
     # 计算今日价格变动
     today_start = today_data[0]["close"]
@@ -583,41 +601,45 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
         lines.append(f"    价格变动: {sp['price_change_pct']:+.2f}%  |  量比: {sp['volume_ratio']:.2f}")
         lines.append(f"    信号: {sp['signal']}  →  {sp['power']}")
 
-    # 早盘量能预期判断（结合占比和额比）
-    if analysis.get("prev_comparison"):
+    # 早盘量能预期判断（始终显示）
+    lines.append(f"")
+    lines.append(f"  【早盘量能预期】")
+    if analysis.get("prev_comparison") and "open_30min" in analysis["prev_comparison"]:
         pc = analysis["prev_comparison"]
-        if "open_30min" in pc:
-            open_info = pc["open_30min"]
-            open_percent = analysis["distribution"]["open_30min"]["percent"]
-            lines.append(f"")
-            lines.append(f"  【早盘量能预期】")
+        open_info = pc["open_30min"]
+        open_percent = analysis["distribution"]["open_30min"]["percent"]
 
-            # 结合占比和额比判断
-            if open_info["amount_ratio"]:
-                amt_ratio = open_info["amount_ratio"]
-                if open_percent > 30:
-                    # 占比高
-                    if amt_ratio > 1.2:
-                        signal = "放量抢筹  →  主力积极介入，量价配合好"
-                        icon = "🟢"
-                    elif amt_ratio > 0.8:
-                        signal = "正常交易  →  主力活跃，量能正常"
-                        icon = "🟢"
-                    else:
-                        signal = "控盘缩量  →  主力高度控盘，不需大量资金"
-                        icon = "🟠"
+        # 结合占比和额比判断
+        if open_info.get("amount_ratio") is not None:
+            amt_ratio = open_info["amount_ratio"]
+            if open_percent > 30:
+                # 占比高
+                if amt_ratio > 1.2:
+                    signal = "放量抢筹  →  主力积极介入，量价配合好"
+                    icon = "🟢"
+                elif amt_ratio > 0.8:
+                    signal = "正常交易  →  主力活跃，量能正常"
+                    icon = "🟢"
                 else:
-                    # 占比低
-                    if amt_ratio > 1.2:
-                        signal = "资金后移  →  主力在其他时段积极操作"
-                        icon = "🟢"
-                    elif amt_ratio > 0.8:
-                        signal = "量能分散  →  交易节奏正常"
-                        icon = "🟡"
-                    else:
-                        signal = "整体观望  →  资金参与度低"
-                        icon = "🔴"
-                lines.append(f"    {icon} 早盘占比: {open_percent}%  额比: {amt_ratio:.2f}  |  {signal}")
+                    signal = "控盘缩量  →  主力高度控盘，不需大量资金"
+                    icon = "🟠"
+            else:
+                # 占比低
+                if amt_ratio > 1.2:
+                    signal = "资金后移  →  主力在其他时段积极操作"
+                    icon = "🟢"
+                elif amt_ratio > 0.8:
+                    signal = "量能分散  →  交易节奏正常"
+                    icon = "🟡"
+                else:
+                    signal = "整体观望  →  资金参与度低"
+                    icon = "🔴"
+            lines.append(f"    {icon} 早盘占比: {open_percent}%  额比: {amt_ratio:.2f}  |  {signal}")
+        else:
+            lines.append(f"    📊 早盘占比: {open_percent}%  |  无前日对比数据")
+    else:
+        open_percent = analysis["distribution"]["open_30min"]["percent"]
+        lines.append(f"    📊 早盘占比: {open_percent}%  |  无前日对比数据")
 
     # 放量时段 TOP 10
     lines.append(f"")
@@ -625,12 +647,14 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
     for item in analysis["top_volumes"]:
         lines.append(f"    {item['time']} 价格:{item['price']:.2f} 成交:{item['volume']}手 金额:{item['amount']/10000:.1f}万")
 
-    # 主力动向判断
+    # 主力动向判断（始终显示）
+    lines.append(f"")
+    lines.append(f"  【主力动向判断】")
     if analysis["signals"]:
-        lines.append(f"")
-        lines.append(f"  【主力动向判断】")
         for signal in analysis["signals"]:
             lines.append(f"    🔥 {signal}")
+    else:
+        lines.append(f"    📊 暂无明显主力异动信号")
 
     # 综合交易信号
     lines.append(f"")
