@@ -7,6 +7,7 @@ from indicators import (
     detect_expectation_gap, calc_composite_score,
     compare_same_period, calc_turnover_rate, get_turnover_rating,
     get_limit_price, split_by_day, extract_hhmm,
+    calc_vwap_trend, analyze_white_yellow_relation,
 )
 
 
@@ -226,6 +227,10 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
     current_price = trading_data[-1]["close"] if trading_data else 0
     vwap_info = calc_vwap_envelope(current_price, vwap)
 
+    # VWAP趋势分析（黄线走势+白黄线关系）
+    vwap_trend = calc_vwap_trend(trading_data)
+    white_yellow_rel = analyze_white_yellow_relation(trading_data, vwap)
+
     prev_data_1 = None
     prev_data_2 = None
     prev_date_1 = None
@@ -413,6 +418,8 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
         "turnover_rating": turnover_rating,
         "vwap": round(vwap, 2),
         "vwap_info": vwap_info,
+        "vwap_trend": vwap_trend,
+        "white_yellow_relation": white_yellow_rel,
         "limit_info": limit_info,
         "prev_limit_up": prev_limit_up,
         "sell_signals": sell_signals,

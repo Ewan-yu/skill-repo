@@ -1,0 +1,344 @@
+{
+  "success": true,
+  "status": 0,
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "requestId": null,
+    "message": "OK",
+    "status": 0,
+    "code": 0,
+    "data": {
+      "protocolType": "SEARCH_DATA",
+      "id": "591d8f40-b402-4d5e-80eb-d2babaa6d3f0",
+      "refSeq": null,
+      "keyEntityList": null,
+      "searchDataResultDTO": {
+        "questionId": "35abf219-762a-4a70-a3d5-750930b41bd7",
+        "dataTableDTOList": [
+          {
+            "code": "002149.SZ",
+            "entityName": "西部材料(002149.SZ)",
+            "table": {
+              "100000000047336": [
+                "71.95万股",
+                "56.42万股",
+                "71.13万股",
+                "68.56万股",
+                "83.46万股",
+                "88.81万股"
+              ],
+              "100000000047337": [
+                "5072万元",
+                "4006万元",
+                "5332万元",
+                "5073万元",
+                "6298万元",
+                "6554万元"
+              ],
+              "100000000041102": [
+                "75.27万股",
+                "65.22万股",
+                "81.24万股",
+                "53.65万股",
+                "88.79万股",
+                "134.9万股"
+              ],
+              "100000000041103": [
+                "5562万元",
+                "4501万元",
+                "5606万元",
+                "4022万元",
+                "6601万元",
+                "1.017亿元"
+              ],
+              "headName": [
+                "2026-05-18",
+                "2026-05-15",
+                "2026-05-14",
+                "2026-05-13",
+                "2026-05-12",
+                "2026-05-11"
+              ]
+            },
+            "rawTable": {
+              "100000000047336": [
+                "719500",
+                "564200",
+                "711315",
+                "685600",
+                "834600",
+                "888107"
+              ],
+              "100000000047337": [
+                "50724750",
+                "40058200",
+                "53320172.4",
+                "50734400",
+                "62978916",
+                "65542296.6"
+              ],
+              "100000000041102": [
+                "752700",
+                "652200",
+                "812401",
+                "536500",
+                "887924",
+                "1348700"
+              ],
+              "100000000041103": [
+                "55624448",
+                "45014848",
+                "56055552",
+                "40215808",
+                "66008064",
+                "101745920"
+              ],
+              "headName": [
+                "2026-05-18",
+                "2026-05-15",
+                "2026-05-14",
+                "2026-05-13",
+                "2026-05-12",
+                "2026-05-11"
+              ]
+            },
+            "truncateRawTable": {},
+            "nameMap": {
+              "100000000047336": "开盘集合竞价成交量",
+              "headNameSub": "数据来源",
+              "100000000047337": "开盘集合竞价成交额",
+              "100000000041102": "收盘集合竞价成交量",
+              "100000000041103": "收盘集合竞价成交额"
+            },
+            "headNameMap": {},
+            "field": {
+              "returnCode": "100000000047336",
+              "returnName": "开盘集合竞价成交量",
+              "classCode": "007101",
+              "checkedRelatedIndicators": true,
+              "startDate": "2026-05-18 00:00:00",
+              "endDate": "2026-05-18 00:00:00",
+              "fuzzy": true,
+              "dateGranularity": "DAY",
+              "defineType": 0,
+              "isLoopN": false,
+              "quantType": "1",
+              "isGroup": false,
+              "returnSourceCode": "JHTVOL",
+              "returnSourceName": "开盘集合竞价成交量",
+              "graph": "0",
+              "unit": "1",
+              "tableType": "1",
+              "unitName": "股",
+              "unitDesc": "10302:股:股"
+            },
+            "entityCodes": [
+              "002149.SZ"
+            ],
+            "macroAttributeExcelMap": {},
+            "fieldSet": [
+              {
+                "returnCode": "100000000047336",
+                "returnName": "开盘集合竞价成交量",
+                "classCode": "007101",
+                "checkedRelatedIndicators": true,
+                "startDate": "2026-05-18 00:00:00",
+                "endDate": "2026-05-18 00:00:00",
+                "fuzzy": true,
+                "dateGranularity": "DAY",
+                "defineType": 0,
+                "isLoopN": false,
+                "quantType": "1",
+                "isGroup": false,
+                "returnSourceCode": "JHTVOL",
+                "returnSourceName": "开盘集合竞价成交量",
+                "graph": "0",
+                "unit": "1",
+                "tableType": "1",
+                "unitName": "股",
+                "unitDesc": "10302:股:股"
+              },
+              {
+                "returnCode": "100000000041102",
+                "returnName": "收盘集合竞价成交量",
+                "classCode": "007101",
+                "checkedRelatedIndicators": true,
+                "startDate": "2026-05-18 00:00:00",
+                "endDate": "2026-05-18 00:00:00",
+                "fuzzy": true,
+                "dateGranularity": "DAY",
+                "defineType": 0,
+                "isLoopN": false,
+                "quantType": "1",
+                "isGroup": false,
+                "returnSourceCode": "TVOL_AUCTIONCLOSE",
+                "returnSourceName": "收盘集合竞价成交量",
+                "graph": "1",
+                "unit": "1",
+                "tableType": "1",
+                "unitName": "股",
+                "unitDesc": "10302:股:股"
+              },
+              {
+                "returnCode": "100000000041103",
+                "returnName": "收盘集合竞价成交额",
+                "classCode": "007101",
+                "checkedRelatedIndicators": true,
+                "startDate": "2026-05-18 00:00:00",
+                "endDate": "2026-05-18 00:00:00",
+                "fuzzy": true,
+                "dateGranularity": "DAY",
+                "defineType": 0,
+                "isLoopN": false,
+                "quantType": "1",
+                "isGroup": false,
+                "returnSourceCode": "TVAL_AUCTIONCLOSE",
+                "returnSourceName": "收盘集合竞价成交额",
+                "graph": "1",
+                "unit": "1",
+                "tableType": "1",
+                "unitName": "元",
+                "unitDesc": "101:元:元"
+              },
+              {
+                "returnCode": "100000000047337",
+                "returnName": "开盘集合竞价成交额",
+                "classCode": "007101",
+                "checkedRelatedIndicators": true,
+                "startDate": "2026-05-18 00:00:00",
+                "endDate": "2026-05-18 00:00:00",
+                "fuzzy": true,
+                "dateGranularity": "DAY",
+                "defineType": 0,
+                "isLoopN": false,
+                "quantType": "1",
+                "isGroup": false,
+                "returnSourceCode": "JHTVAL",
+                "returnSourceName": "开盘集合竞价成交额",
+                "graph": "0",
+                "unit": "1",
+                "tableType": "1",
+                "unitName": "元",
+                "unitDesc": "101:元:元"
+              }
+            ],
+            "dataTableType": "NORM_TABLE",
+            "rowInfo": {},
+            "colInfo": {},
+            "indicatorOrder": [
+              "100000000047336",
+              "100000000047337",
+              "100000000041102",
+              "100000000041103"
+            ],
+            "tipFlags": [],
+            "dataType": "数据浏览器",
+            "title": "西部材料(002149.SZ)的开盘集合竞价成交量、开盘集合竞价成交额等",
+            "hasThumbnail": true,
+            "indicatorLimited": false,
+            "dataPositionEnum": "MetricLeftTimeTop",
+            "orderCol": {},
+            "jumpUrlList": [
+              {
+                "choiceUrl": "EM://stockdatacenter?type=browser&modType=STOCK&code=002149.SZ&indId=100000000047336|121:2026-05-11,100000000047336|121:2026-05-12,100000000047336|121:2026-05-13,100000000047336|121:2026-05-14,100000000047336|121:2026-05-15,100000000047336|121:2026-05-18,100000000047337|121:2026-05-11,100000000047337|121:2026-05-12,100000000047337|121:2026-05-13,100000000047337|121:2026-05-14,100000000047337|121:2026-05-15,100000000047337|121:2026-05-18,100000000041102|121:2026-05-11,100000000041102|121:2026-05-12,100000000041102|121:2026-05-13,100000000041102|121:2026-05-14,100000000041102|121:2026-05-15,100000000041102|121:2026-05-18,100000000041103|121:2026-05-11,100000000041103|121:2026-05-12,100000000041103|121:2026-05-13,100000000041103|121:2026-05-14,100000000041103|121:2026-05-15,100000000041103|121:2026-05-18",
+                "typeName": "股票数据浏览器"
+              }
+            ],
+            "dataTypeEnum": "DATA_BROWSER",
+            "dateRuleSet": [],
+            "freqConvert": false,
+            "deleteInfo": [],
+            "macroCodeMap": {},
+            "entityTagDTO": {
+              "entityId": "1000006775",
+              "entityType": "SEC",
+              "entityTypeCode": "058001001",
+              "entityTypeName": "A股",
+              "classCode": "002001",
+              "className": "沪深京股票",
+              "publishCode": "",
+              "fullName": "西部材料",
+              "shortName": "",
+              "secuCode": "002149",
+              "market": "0",
+              "marketChar": ".SZ",
+              "correct": false,
+              "hasKLine": false,
+              "valuation": false
+            },
+            "entityTagDTOList": [
+              {
+                "entityId": "1000006775",
+                "entityType": "SEC",
+                "entityTypeCode": "058001001",
+                "entityTypeName": "A股",
+                "classCode": "002001",
+                "className": "沪深京股票",
+                "publishCode": "",
+                "fullName": "西部材料",
+                "shortName": "",
+                "secuCode": "002149",
+                "market": "0",
+                "marketChar": ".SZ",
+                "correct": false,
+                "hasKLine": false,
+                "valuation": false
+              }
+            ],
+            "indexTable": false,
+            "edbThirdData": false,
+            "dataUpdate": {
+              "2026-05-18": false
+            },
+            "supportsTimeSeries": false,
+            "estimatedTokens": 0,
+            "summaryTips": {
+              "periodicalReport": null
+            },
+            "nestEntityListMap": {},
+            "excelTimeTruncate": false,
+            "frontendEntityName": "",
+            "frontendEntityCode": "",
+            "frontendTitle": "",
+            "frontendDesc": "",
+            "indicatorCount": 0,
+            "fieldParameterStr": "",
+            "tdayEnum": "NORMAL"
+          }
+        ],
+        "condition": {
+          "search_data_task_0": [
+            "西部材料",
+            "开盘集合竞价成交量开盘集合竞价成交额收盘集合竞价成交量收盘集合竞价成交额",
+            "2026-05-18至2026-05-18"
+          ]
+        },
+        "entityTagDTOList": [
+          {
+            "entityId": "1000006775",
+            "entityType": "SEC",
+            "entityTypeCode": "058001001",
+            "entityTypeName": "A股",
+            "classCode": "002001",
+            "className": "沪深京股票",
+            "publishCode": "",
+            "fullName": "西部材料",
+            "shortName": "",
+            "secuCode": "002149",
+            "market": "0",
+            "marketChar": ".SZ",
+            "correct": false,
+            "hasKLine": false,
+            "valuation": false
+          }
+        ]
+      },
+      "entityName": null,
+      "message": null,
+      "tableTruncated": false
+    },
+    "stack": null
+  },
+  "requestId": "c510c5fe03cf4b1f9148de70764edbd6"
+}

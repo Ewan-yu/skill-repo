@@ -270,8 +270,12 @@ def build_minute_report(analysis: dict, name: str, review_mode: bool = False) ->
         b1.append(f"换手率: {analysis['turnover_rate']:.2f}% ({analysis['turnover_rating']})")
     if analysis.get("vwap") and analysis["vwap"] > 0:
         vi = analysis.get("vwap_info", {})
-        b1.append(f"均价线(VWAP): {analysis['vwap']:.2f}")
-        b1.append(f"当前价 vs 均价线: {vi.get('label', 'N/A')}")
+        vt = analysis.get("vwap_trend", {})
+        wyb = analysis.get("white_yellow_relation", {})
+        b1.append(f"均价线(VWAP): {analysis['vwap']:.2f} | 走势: {vt.get('trend', 'N/A')}")
+        b1.append(f"当前价 vs 均价: {vi.get('label', 'N/A')}")
+        if wyb.get("description"):
+            b1.append(f"白黄线关系: {wyb.get('description', 'N/A')}")
     sections.append(Section(title="基础数据", body=b1))
 
     # 2. 成交分布

@@ -471,3 +471,142 @@ def get_limit_price(pre_close: float, is_st: bool = False, is_kcb_cyb: bool = Fa
         return (round(pre_close * 1.20, 2), round(pre_close * 0.80, 2))
     else:
         return (round(pre_close * 1.10, 2), round(pre_close * 0.90, 2))
+
+
+def calc_vwap_trend(trading_data: list[dict]) -> dict:
+    """计算VWAP时间序列并分析黄线走势方向
+
+    返回黄线全天走势：向上/向下/横盘
+    """
+    if not trading_data or len(trading_data) < 10:
+        return {"trend": "数据不足", "slope": None, "description": "数据点不足，无法判断趋势"}
+
+    # 计算累计VWAP序列（每隔几个点采样一次，避免过多数据）
+    vwap_series = []
+    total_value = 0.0
+    total_vol = 0
+    sample_interval = max(1, len(trading_data) // 20)  # 采样约20个点
+
+    for i, d in enumerate(trading_data):
+        vol = d["volume"]
+        if vol > 0:
+            total_value += d["close"] * vol
+            total_vol += vol
+            if total_vol > 0:
+                vwap = total_value / total_vol
+                if i % sample_interval == 0 or i == len(trading_data) - 1:
+                    vwap_series.append({
+                        "time": extract_hhmm(d["time"]),
+                        "vwap": vwap,
+                        "index": i,
+                    })
+
+    if len(vwap_series) < 3:
+        return {"trend": "数据不足", "slope": None, "description": "有效数据点不足"}
+
+    # 分析VWAP序列趋势
+    start_vwap = vwap_series[0]["vwap"]
+    end_vwap = vwap_series[-1]["vwap"]
+    mid_vwap = vwap_series[len(vwap_series)//2]["vwap"]
+
+    # 提取所有VWAP值用于计算波动范围
+    vwap_values = [v["vwap"] for v in vwap_series]
+    max_vwap = max(vwap_values)
+    min_vwap = min(vwap_values)
+
+    # 计算趋势斜率（元/小时）
+    price_change = end_vwap - start_vwap
+    price_change_pct = (price_change / start_vwap * 100) if start_vwap > 0 else 0
+
+    # 判断趋势方向
+    if price_change_pct > 0.5:
+        trend = "向上"
+        description = f"黄线全天向上({price_change_pct:+.1f}%)，均价成本持续上移，买方主动"
+    elif price_change_pct < -0.5:
+        trend = "向下"
+        description = f"黄线全天向下({price_change_pct:+.1f}%)，均价成本下移，卖方主动"
+    else:
+        # 检查波动情况
+        volatility = (max_vwap - min_vwap) / start_vwap * 100 if start_vwap > 0 else 0
+
+        if volatility > 1.0:
+            trend = "震荡"
+            description = f"黄线震荡(波动{volatility:.1f}%)，多空激烈博弈"
+        else:
+            trend = "横盘"
+            description = f"黄线横盘稳定(波动{volatility:.1f}%)，多空平衡"
+
+    return {
+        "trend": trend,
+        "slope": round(price_change_pct, 2),
+        "start_vwap": round(start_vwap, 2),
+        "end_vwap": round(end_vwap, 2),
+        "max_vwap": round(max_vwap, 2) if vwap_series else None,
+        "min_vwap": round(min_vwap, 2) if vwap_series else None,
+        "description": description,
+    }
+
+
+def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict:
+    """分析白线（价格）相对黄线（VWAP）的动态关系
+
+    返回白线在黄线上方/下方的时间占比和关系描述
+    """
+    if not trading_data or vwap <= 0:
+        return {
+            "relation": "数据不足",
+            "above_ratio": None,
+            "below_ratio": None,
+            "description": "无法分析",
+        }
+
+    above_count = 0
+    below_count = 0
+    total_points = 0
+
+    # 分析每个时间点价格与VWAP的关系
+    for d in trading_data:
+        if d["volume"] > 0:
+            total_points += 1
+            if d["close"] > vwap:
+                above_count += 1
+            elif d["close"] < vwap:
+                below_count += 1
+
+    if total_points == 0:
+        return {
+            "relation": "数据不足",
+            "above_ratio": None,
+            "below_ratio": None,
+            "description": "无有效交易数据",
+        }
+
+    above_ratio = above_count / total_points * 100
+    below_ratio = below_count / total_points * 100
+
+    # 判断关系类型
+    if above_ratio > 80:
+        relation = "长时间在上方"
+        description = f"白线{above_ratio:.0f}%时间在黄线上方，多头强势控盘"
+    elif above_ratio > 60:
+        relation = "主要在上方"
+        description = f"白线{above_ratio:.0f}%时间在黄线上方，多头占优"
+    elif above_ratio > 40:
+        relation = "上下纠缠"
+        description = f"白线在黄线上{above_ratio:.0f}%时间，多空激烈博弈，方向待选"
+    elif above_ratio > 20:
+        relation = "主要在下方"
+        description = f"白线{below_ratio:.0f}%时间在黄线下方，空头占优"
+    else:
+        relation = "长时间在下方"
+        description = f"白线{below_ratio:.0f}%时间在黄线下方，空头强势压制"
+
+    return {
+        "relation": relation,
+        "above_ratio": round(above_ratio, 1),
+        "below_ratio": round(below_ratio, 1),
+        "above_count": above_count,
+        "below_count": below_count,
+        "total_points": total_points,
+        "description": description,
+    }
