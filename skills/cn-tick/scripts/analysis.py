@@ -8,6 +8,7 @@ from indicators import (
     compare_same_period, calc_turnover_rate, get_turnover_rating,
     get_limit_price, split_by_day, extract_hhmm,
     calc_vwap_trend, analyze_white_yellow_relation,
+    build_shrink_decision,
 )
 
 
@@ -103,7 +104,7 @@ def build_sell_signals(trading_data: list[dict], pre_close: float,
                 signals.append({"type": "参考", "level": "中",
                                  "message": "前日涨停股开盘半小时不红盘即走，是游资铁律"})
         elif prev_limit_up is False:
-            if not is_red and current_time_str >= "10:31":
+            if not is_red and current_time_str >= "10:30":
                 signals.append({"type": "卖出信号", "level": "中",
                                  "message": "前日未涨停+开盘1小时不红盘，按三部曲应卖出"})
 
@@ -150,10 +151,13 @@ def detect_limit_status(price: float, pre_close: float, code: str = "") -> dict:
     }
 
 
-def detect_prev_limit_up(prev_data: list[dict], pre_close: float) -> bool:
+def detect_prev_limit_up(prev_data: list[dict], pre_close: float, code: str = "") -> bool:
     """判断前一日是否涨停"""
     if not prev_data or len(prev_data) < 10:
         return False
+
+    # 科创板(68开头)和创业板(30开头)涨跌幅限制20%，涨停阈值18%
+    change_threshold = 18.0 if (code.startswith("68") or code.startswith("30")) else 9.0
 
     trading_prev = [d for d in prev_data
                     if "09:30" <= extract_hhmm(d["time"]) <= "15:00"
@@ -175,7 +179,7 @@ def detect_prev_limit_up(prev_data: list[dict], pre_close: float) -> bool:
     prev_open = trading_prev[0]["open"]
     if prev_open > 0:
         prev_change = (prev_close_price - prev_open) / prev_open * 100
-        if prev_change > 9.0 and close_near_high:
+        if prev_change > change_threshold and close_near_high:
             return True
 
     return False
@@ -249,7 +253,7 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
 
     prev_limit_up = None
     if prev_data_1:
-        prev_limit_up = detect_prev_limit_up(prev_data_1, pre_close)
+        prev_limit_up = detect_prev_limit_up(prev_data_1, pre_close, code)
 
     # 同时段对比
     prev_comparison = {}
@@ -426,4 +430,11 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
         "auction_comparison": auction_comparison,
         "expectation_gap": expectation_gap,
         "composite_score": composite_score,
+        "open_pct": _open_pct,
+        "shrink_decision": build_shrink_decision(
+            vwap_trend=vwap_trend.get("trend", ""),
+            vwap_deviation=vwap_info.get("deviation_pct"),
+            open_pct=_open_pct,
+            period_comparisons=prev_comparison,
+        ),
     }

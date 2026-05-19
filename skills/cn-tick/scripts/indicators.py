@@ -548,9 +548,10 @@ def calc_vwap_trend(trading_data: list[dict]) -> dict:
 
 
 def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict:
-    """分析白线（价格）相对黄线（VWAP）的动态关系
+    """分析白线（价格）相对黄线（运行VWAP）的动态关系
 
-    返回白线在黄线上方/下方的时间占比和关系描述
+    使用逐点累计VWAP与当时价格对比（而非最终VWAP），
+    正确反映全天每个时刻的多空状态。
     """
     if not trading_data or vwap <= 0:
         return {
@@ -563,14 +564,21 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
     above_count = 0
     below_count = 0
     total_points = 0
+    running_value = 0.0
+    running_vol = 0
 
-    # 分析每个时间点价格与VWAP的关系
+    # 逐点计算运行VWAP，与当时价格对比（而非最终VWAP）
     for d in trading_data:
-        if d["volume"] > 0:
+        vol = d["volume"]
+        if vol > 0:
+            running_value += d["close"] * vol
+            running_vol += vol
+            running_vwap = running_value / running_vol
+
             total_points += 1
-            if d["close"] > vwap:
+            if d["close"] > running_vwap:
                 above_count += 1
-            elif d["close"] < vwap:
+            elif d["close"] < running_vwap:
                 below_count += 1
 
     if total_points == 0:
@@ -584,7 +592,7 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
     above_ratio = above_count / total_points * 100
     below_ratio = below_count / total_points * 100
 
-    # 判断关系类型
+    # 判断关系类型（基于运行VWAP时间占比）
     if above_ratio > 80:
         relation = "长时间在上方"
         description = f"白线{above_ratio:.0f}%时间在黄线上方，多头强势控盘"
@@ -593,13 +601,21 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
         description = f"白线{above_ratio:.0f}%时间在黄线上方，多头占优"
     elif above_ratio > 40:
         relation = "上下纠缠"
-        description = f"白线在黄线上{above_ratio:.0f}%时间，多空激烈博弈，方向待选"
+        description = f"白线在黄线上方{above_ratio:.0f}%时间，多空激烈博弈，方向待选"
     elif above_ratio > 20:
         relation = "主要在下方"
         description = f"白线{below_ratio:.0f}%时间在黄线下方，空头占优"
     else:
         relation = "长时间在下方"
         description = f"白线{below_ratio:.0f}%时间在黄线下方，空头强势压制"
+
+    # 追加当前位置信息（使用最终VWAP判断当前白黄位置）
+    current_price = trading_data[-1]["close"]
+    current_above = current_price > vwap
+    if current_above:
+        description += "；当前价在均价线上方"
+    else:
+        description += "；当前价在均价线下方（弱势信号）"
 
     return {
         "relation": relation,
@@ -608,5 +624,74 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
         "above_count": above_count,
         "below_count": below_count,
         "total_points": total_points,
+        "current_above": current_above,
         "description": description,
+    }
+
+
+def build_shrink_decision(vwap_trend: str, vwap_deviation: float | None,
+                          open_pct: float, period_comparisons: dict) -> dict:
+    """缩量时的操作决策树（参考实战手册第七章）
+
+    缩量 + 黄线向下 + 离支撑位远 → 立即卖出
+    缩量 + 黄线横盘/震荡 + 靠近均价 → 观察企稳
+    缩量 + 黄线向上            → 暂时观察，可能是洗盘
+    """
+    # 判断是否缩量及严重程度
+    is_shrink = False
+    shrink_severity = ""
+
+    if open_pct > 0 and open_pct < 20:
+        is_shrink = True
+        shrink_severity = f"早盘严重缩量(占比{open_pct:.1f}%，按实战标准<20%今日基本无戏)"
+
+    if not is_shrink and period_comparisons:
+        open_comp = period_comparisons.get("open_30min", {})
+        amt_ratio = open_comp.get("amount_ratio")
+        if amt_ratio is not None:
+            if amt_ratio < 0.7:
+                is_shrink = True
+                shrink_severity = f"早盘明显缩量(额比{amt_ratio:.2f}，不足前日70%)"
+            elif amt_ratio < 0.9:
+                is_shrink = True
+                shrink_severity = f"早盘温和缩量(额比{amt_ratio:.2f})"
+
+    if not is_shrink:
+        return {
+            "is_shrink": False,
+            "decision": "量能正常",
+            "action": "",
+            "urgency": "无",
+        }
+
+    # 缩量决策树
+    if vwap_trend == "向下":
+        decision = "立即卖出"
+        action = "缩量+黄线向下，按实战铁律应立即卖出，不等待支撑"
+        urgency = "高"
+    elif vwap_trend in ("横盘", "震荡"):
+        if vwap_deviation is not None and abs(vwap_deviation) < 2:
+            decision = "观察企稳"
+            action = "缩量+黄线横盘+靠近均价，等待是否出现放量企稳"
+            urgency = "中"
+        else:
+            decision = "谨慎观望"
+            action = "缩量+黄线横盘，偏离均价较远，等待方向确认后再操作"
+            urgency = "中"
+    elif vwap_trend == "向上":
+        decision = "暂时观察"
+        action = "缩量+黄线向上，可能是主力控盘洗盘，等量能放大确认再介入"
+        urgency = "低"
+    else:
+        decision = "谨慎观望"
+        action = "趋势不明，保持观望"
+        urgency = "中"
+
+    return {
+        "is_shrink": True,
+        "shrink_severity": shrink_severity,
+        "decision": decision,
+        "action": action,
+        "urgency": urgency,
+        "reasoning": f"{shrink_severity} → 黄线{vwap_trend} → {decision}",
     }
