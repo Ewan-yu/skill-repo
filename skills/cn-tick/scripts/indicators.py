@@ -230,11 +230,14 @@ def calc_composite_score(
     all_amt_ratio: float | None,
     gap_type: str,
     gap_level: str,
+    market_sentiment: dict | None = None,
+    sector_heat: dict | None = None,
 ) -> dict:
-    """多维度综合评分（脚本内可计算的3个维度）
+    """多维度综合评分（脚本内可计算的维度）
 
     数据不足时降低满分而非填充默认分，确保评分真实反映数据质量。
-    趋势评分（第4维度，25分）由 Claude 基于历史K线补充。
+    趋势评分（25分）由 Claude 基于历史K线补充。
+    大盘/板块作为修正因子影响最终评分。
     """
     scores = {}
     details = {}
@@ -373,8 +376,46 @@ def calc_composite_score(
     partial_total = vol_score + acc_score + exp_score
     max_partial = vol_max + acc_max + 25
 
+    # --- 大盘/板块修正因子 ---
+    market_correction = 0
+    if market_sentiment and market_sentiment.get("available"):
+        impact = market_sentiment.get("impact", "中性")
+        if impact == "正面":
+            market_correction = 3
+            details["大盘情绪"] = f"{market_sentiment['sentiment']} → +3"
+        elif impact == "负面":
+            market_correction = -3
+            details["大盘情绪"] = f"{market_sentiment['sentiment']} → -3"
+        elif impact == "严重负面":
+            market_correction = -8
+            details["大盘情绪"] = f"{market_sentiment['sentiment']} → -8"
+        else:
+            details["大盘情绪"] = "震荡 → ±0"
+
+    sector_correction = 0
+    if sector_heat and sector_heat.get("available"):
+        heat = sector_heat.get("heat", "")
+        if heat == "极热":
+            sector_correction = 5
+            details["板块热度"] = f"{sector_heat['sector_name']}({heat}) → +5"
+        elif heat == "偏热":
+            sector_correction = 3
+            details["板块热度"] = f"{sector_heat['sector_name']}({heat}) → +3"
+        elif heat == "偏冷":
+            sector_correction = -2
+            details["板块热度"] = f"{sector_heat['sector_name']}({heat}) → -2"
+        elif heat == "冷":
+            sector_correction = -5
+            details["板块热度"] = f"{sector_heat['sector_name']}({heat}) → -5"
+        else:
+            details["板块热度"] = f"{sector_heat['sector_name']}(正常) → ±0"
+
+    # 应用修正因子
+    corrected_total = partial_total + market_correction + sector_correction
+    corrected_total = max(0, corrected_total)  # 不低于0
+
     if max_partial > 0:
-        score_pct = partial_total / max_partial
+        score_pct = corrected_total / (max_partial + 25)  # 含趋势分的满分
         if score_pct >= 0.80:
             partial_rating = "强势（待趋势确认）"
         elif score_pct >= 0.60:
@@ -390,6 +431,9 @@ def calc_composite_score(
         "scores": scores,
         "partial_total": partial_total,
         "max_partial": max_partial,
+        "market_correction": market_correction,
+        "sector_correction": sector_correction,
+        "corrected_total": corrected_total,
         "partial_rating": partial_rating,
         "details": details,
         "missing_data": missing_data,
@@ -746,4 +790,372 @@ def build_shrink_decision(vwap_trend: str, vwap_deviation: float | None,
         "action": action,
         "urgency": urgency,
         "reasoning": f"{shrink_severity} → 黄线{vwap_trend} → {decision}",
+    }
+
+
+def calc_market_sentiment(market_data: dict | None) -> dict:
+    """分析大盘情绪，为预期差和操作决策提供背景
+
+    market_data 来自 mcp__cn-financial__get_market_overview，结构：
+    {
+        "上证指数": {"price": 3200, "change_pct": 0.5, ...},
+        "深证成指": {...},
+        "创业板指": {...},
+    }
+    """
+    if not market_data:
+        return {
+            "available": False,
+            "sentiment": "未知",
+            "description": "大盘数据缺失，无法判断市场环境",
+            "impact": "中性",
+        }
+
+    # 提取主要指数涨跌
+    sh_change = None
+    cyb_change = None
+    for name, data in market_data.items():
+        if "上证" in name:
+            sh_change = data.get("change_pct")
+        if "创业板" in name:
+            cyb_change = data.get("change_pct")
+
+    if sh_change is None and cyb_change is None:
+        return {
+            "available": False,
+            "sentiment": "未知",
+            "description": "未找到主要指数数据",
+            "impact": "中性",
+        }
+
+    # 综合判断市场情绪
+    avg_change = 0
+    count = 0
+    if sh_change is not None:
+        avg_change += sh_change
+        count += 1
+    if cyb_change is not None:
+        avg_change += cyb_change
+        count += 1
+    avg_change = avg_change / count if count > 0 else 0
+
+    if avg_change > 1.5:
+        sentiment = "强势普涨"
+        description = f"大盘强势(上证{sh_change:+.1f}%/创业板{cyb_change:+.1f}%)，市场情绪积极，预期差信号更可靠"
+        impact = "正面"
+    elif avg_change > 0.5:
+        sentiment = "温和上涨"
+        description = f"大盘温和上涨(上证{sh_change:+.1f}%)，市场偏暖，操作环境正常"
+        impact = "正面"
+    elif avg_change > -0.5:
+        sentiment = "震荡"
+        description = f"大盘震荡(上证{sh_change:+.1f}%)，多空分歧，个股分化"
+        impact = "中性"
+    elif avg_change > -1.5:
+        sentiment = "温和下跌"
+        description = f"大盘下跌(上证{sh_change:+.1f}%)，市场偏冷，谨慎操作"
+        impact = "负面"
+    else:
+        sentiment = "恐慌下跌"
+        description = f"大盘大跌(上证{sh_change:+.1f}%)，系统性风险，建议空仓观望"
+        impact = "严重负面"
+
+    return {
+        "available": True,
+        "sentiment": sentiment,
+        "sh_change": sh_change,
+        "cyb_change": cyb_change,
+        "avg_change": round(avg_change, 2),
+        "description": description,
+        "impact": impact,
+    }
+
+
+def calc_sector_heat(sector_data: list[dict] | None, stock_sector: str = "") -> dict:
+    """分析个股所属板块的热度
+
+    sector_data 来自 mcp__cn-financial__get_industry_list 或 get_concept_list
+    stock_sector: 个股所属行业/概念名称
+    """
+    if not sector_data or not stock_sector:
+        return {
+            "available": False,
+            "heat": "未知",
+            "description": "板块数据缺失，无法判断板块热度",
+            "in_hot_sector": None,
+        }
+
+    # 在板块列表中查找个股所属板块
+    matched = None
+    for sector in sector_data:
+        name = sector.get("name", "")
+        if stock_sector in name or name in stock_sector:
+            matched = sector
+            break
+
+    if not matched:
+        return {
+            "available": True,
+            "heat": "未匹配",
+            "description": f"未在板块列表中找到「{stock_sector}」",
+            "in_hot_sector": False,
+        }
+
+    change_pct = matched.get("change_pct", 0) or 0
+    rank = matched.get("rank", 0)
+
+    # 判断板块热度
+    if change_pct > 2.0:
+        heat = "极热"
+        description = f"「{stock_sector}」板块涨幅{change_pct:+.1f}%，极强热度，资金集中涌入"
+        in_hot = True
+    elif change_pct > 1.0:
+        heat = "偏热"
+        description = f"「{stock_sector}」板块涨幅{change_pct:+.1f}%，资金关注度高"
+        in_hot = True
+    elif change_pct > 0:
+        heat = "正常"
+        description = f"「{stock_sector}」板块涨幅{change_pct:+.1f}%，表现正常"
+        in_hot = False
+    elif change_pct > -1.0:
+        heat = "偏冷"
+        description = f"「{stock_sector}」板块跌幅{change_pct:+.1f}%，资金流出"
+        in_hot = False
+    else:
+        heat = "冷"
+        description = f"「{stock_sector}」板块跌幅{change_pct:+.1f}%，板块弱势"
+        in_hot = False
+
+    return {
+        "available": True,
+        "heat": heat,
+        "sector_name": stock_sector,
+        "change_pct": round(change_pct, 2),
+        "rank": rank,
+        "description": description,
+        "in_hot_sector": in_hot,
+    }
+
+
+def build_limit_up_detail(
+    trading_data: list[dict],
+    pre_close: float,
+    code: str = "",
+    prev_day_data: list[dict] | None = None,
+) -> dict:
+    """涨停股深度分析：封单强度、连板判断、打开风险
+
+    分析维度：
+    1. 封板时间（越早越强）
+    2. 封板次数（多次打开=弱）
+    3. 连板天数（基于前日数据）
+    4. 封单/成交量比（估算封单强度）
+    """
+    if not trading_data or pre_close <= 0:
+        return {"is_limit_up": False, "detail": "数据不足"}
+
+    current_price = trading_data[-1]["close"]
+    is_kcb_cyb = code.startswith(("68", "30"))
+    is_st = "ST" in code
+    limit_up_price, _ = get_limit_price(pre_close, is_st, is_kcb_cyb)
+
+    if abs(current_price - limit_up_price) > 0.01:
+        return {"is_limit_up": False, "detail": "当前未涨停"}
+
+    # 封板时间：首次触及涨停价的时间
+    first_limit_time = ""
+    limit_touch_count = 0
+    for d in trading_data:
+        if abs(d["close"] - limit_up_price) <= 0.01:
+            limit_touch_count += 1
+            if not first_limit_time:
+                first_limit_time = extract_hhmm(d["time"])
+
+    # 封板时段分布：早盘封板 vs 尾盘封板
+    if first_limit_time:
+        if first_limit_time <= "10:00":
+            seal_quality = "早盘快速封板"
+            seal_strength = "强"
+        elif first_limit_time <= "13:30":
+            seal_quality = "盘中封板"
+            seal_strength = "中"
+        else:
+            seal_quality = "尾盘封板"
+            seal_strength = "弱"
+    else:
+        seal_quality = "未知"
+        seal_strength = "未知"
+
+    # 封板稳定性：通过价格在涨停价附近的波动次数判断
+    limit_area_count = sum(1 for d in trading_data
+                           if abs(d["close"] - limit_up_price) <= 0.02
+                           and d["close"] < limit_up_price)
+    unstable = limit_area_count > 5  # 多次在涨停价附近波动
+
+    # 连板判断
+    consecutive_days = 1
+    is_consecutive = False
+    if prev_day_data and len(prev_day_data) >= 10:
+        prev_trading = [d for d in prev_day_data
+                        if "09:30" <= extract_hhmm(d["time"]) <= "15:00"
+                        and d["volume"] > 0]
+        if prev_trading:
+            prev_close_price = prev_trading[-1]["close"]
+            prev_high = max(d["high"] for d in prev_trading)
+            if abs(prev_close_price - prev_high) <= 0.01:
+                is_consecutive = True
+                consecutive_days = 2  # 至少2连板（今日+前日）
+
+    # 估算封单强度：用最后几分钟的成交量推算
+    late_vol = sum(d["volume"] for d in trading_data[-5:]
+                   if d["volume"] > 0)
+    total_vol = sum(d["volume"] for d in trading_data if d["volume"] > 0)
+    late_vol_ratio = late_vol / total_vol if total_vol > 0 else 0
+
+    # 生成建议
+    if unstable:
+        advice = "封板不稳定，多次开板，警惕主力出货"
+    elif seal_strength == "强" and not unstable:
+        advice = "早盘一字或快速封板，主力强势，可持有"
+    elif seal_strength == "中":
+        advice = "盘中封板，关注是否稳定，若再次开板考虑减仓"
+    else:
+        advice = "尾盘封板，封板较弱，次日需关注竞价表现"
+
+    return {
+        "is_limit_up": True,
+        "limit_up_price": limit_up_price,
+        "first_limit_time": first_limit_time,
+        "seal_quality": seal_quality,
+        "seal_strength": seal_strength,
+        "unstable": unstable,
+        "is_consecutive": is_consecutive,
+        "consecutive_days": consecutive_days,
+        "late_vol_ratio": round(late_vol_ratio, 3),
+        "detail": advice,
+    }
+
+
+def build_dragon_tiger_analysis(dt_data: list[dict], stock_code: str) -> dict:
+    """龙虎榜数据解读
+
+    dt_data 来自 mcp__cn-financial__get_dragon_tiger
+    分析维度：
+    1. 买卖力量对比（买入总额 vs 卖出总额）
+    2. 机构/游资席位识别
+    3. 敢死队席位识别
+    4. 买入集中度（买1独大 vs 均匀分布）
+    """
+    if not dt_data:
+        return {
+            "available": False,
+            "summary": "无龙虎榜数据",
+        }
+
+    # 筛选目标股票的龙虎榜数据
+    stock_records = [r for r in dt_data if r.get("code", "") == stock_code]
+    if not stock_records:
+        return {
+            "available": False,
+            "summary": f"该股票近期无龙虎榜上榜记录",
+        }
+
+    record = stock_records[0]
+    buy_amount = record.get("buy_amount", 0) or 0
+    sell_amount = record.get("sell_amount", 0) or 0
+    net_amount = buy_amount - sell_amount
+    reason = record.get("reason", "")
+
+    # 买卖力量对比
+    if sell_amount > 0:
+        buy_sell_ratio = buy_amount / sell_amount
+    else:
+        buy_sell_ratio = float("inf") if buy_amount > 0 else 0
+
+    if buy_sell_ratio > 1.5:
+        power = "买方强势"
+        power_desc = f"买入额是卖出额的{buy_sell_ratio:.1f}倍，资金大幅流入"
+    elif buy_sell_ratio > 1.1:
+        power = "买方略强"
+        power_desc = f"买入略大于卖出，资金温和流入"
+    elif buy_sell_ratio > 0.9:
+        power = "多空平衡"
+        power_desc = "买卖基本均衡"
+    elif buy_sell_ratio > 0.5:
+        power = "卖方略强"
+        power_desc = "卖出大于买入，资金流出"
+    else:
+        power = "卖方强势"
+        power_desc = f"卖出额是买入额的{1/buy_sell_ratio:.1f}倍，资金大幅流出"
+
+    # 席位分析（从买方营业部数据中识别）
+    buy_seats = record.get("buy_seats", []) or []
+    sell_seats = record.get("sell_seats", []) or []
+
+    # 敢死队席位关键词
+    aggressive_keywords = ["金田", "淮海", "佛山", "成都", "校长", "山东"]
+    aggressive_count = 0
+    for seat in buy_seats:
+        seat_name = seat.get("name", "") if isinstance(seat, dict) else str(seat)
+        for kw in aggressive_keywords:
+            if kw in seat_name:
+                aggressive_count += 1
+                break
+
+    # 机构席位
+    org_keywords = ["机构", "基金", "社保"]
+    org_count = 0
+    for seat in buy_seats:
+        seat_name = seat.get("name", "") if isinstance(seat, dict) else str(seat)
+        for kw in org_keywords:
+            if kw in seat_name:
+                org_count += 1
+                break
+
+    # 买入集中度
+    buy_amounts = [s.get("amount", 0) for s in buy_seats if isinstance(s, dict)]
+    if buy_amounts and len(buy_amounts) >= 2:
+        max_buy = max(buy_amounts)
+        total_buy = sum(buy_amounts)
+        concentration = max_buy / total_buy if total_buy > 0 else 0
+        if concentration > 0.5:
+            seat_pattern = "买1独大"
+            seat_desc = "买入高度集中，独食概率高，次日高开当心"
+        elif concentration > 0.3:
+            seat_pattern = "买方集中"
+            seat_desc = "买入较集中，有主力参与"
+        else:
+            seat_pattern = "均匀分布"
+            seat_desc = "买入分散，相对安全，有肉吃"
+    else:
+        concentration = 0
+        seat_pattern = "数据不足"
+        seat_desc = "席位数据不足，无法判断集中度"
+
+    # 综合建议
+    if aggressive_count >= 2 and buy_amount > 0:
+        advice = "⚠ 敢死队占多席，次日高开概率大但易砸盘，高开不追"
+    elif seat_pattern == "买1独大":
+        advice = "⚡ 买1独食，低开可考虑介入，高开需谨慎"
+    elif power == "卖方强势":
+        advice = "⚠ 卖出远大于买入，小心次日继续下跌"
+    elif seat_pattern == "均匀分布" and power in ("买方强势", "买方略强"):
+        advice = "✓ 买卖均衡偏多，席位健康，相对安全"
+    else:
+        advice = "观望，结合其他信号综合判断"
+
+    return {
+        "available": True,
+        "reason": reason,
+        "buy_amount": buy_amount,
+        "sell_amount": sell_amount,
+        "net_amount": net_amount,
+        "buy_sell_ratio": round(buy_sell_ratio, 2) if buy_sell_ratio != float("inf") else "∞",
+        "power": power,
+        "power_desc": power_desc,
+        "aggressive_count": aggressive_count,
+        "org_count": org_count,
+        "seat_pattern": seat_pattern,
+        "seat_desc": seat_desc,
+        "advice": advice,
     }

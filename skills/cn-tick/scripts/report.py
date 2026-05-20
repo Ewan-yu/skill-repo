@@ -602,7 +602,53 @@ def build_minute_report(analysis: dict, name: str, review_mode: bool = False) ->
                            rows=t_rows, aligns=["<", ">", ">", ">"]),
         ))
 
-    # ——— 15. 盘后复盘（--review 模式） ———
+    # ——— 15. 大盘情绪（新增） ———
+    ms = analysis.get("market_sentiment", {})
+    if ms and ms.get("available"):
+        b15 = [ms.get("description", "")]
+        if ms.get("sh_change") is not None and ms.get("cyb_change") is not None:
+            b15.append(f"上证: {ms['sh_change']:+.1f}%  创业板: {ms['cyb_change']:+.1f}%")
+        sections.append(Section(title="大盘情绪", body=b15))
+
+    # ——— 16. 板块热度（新增） ———
+    sh = analysis.get("sector_heat", {})
+    if sh and sh.get("available") and sh.get("heat") not in ("未知", "未匹配"):
+        b16 = [sh.get("description", "")]
+        if sh.get("in_hot_sector") is True:
+            b16.append("✓ 属于近期热点板块，符合低吸原则第一条")
+        elif sh.get("in_hot_sector") is False:
+            b16.append("✗ 非热点板块，低吸需谨慎")
+        sections.append(Section(title="板块热度", body=b16))
+
+    # ——— 17. 涨停深度分析（新增） ———
+    lud = analysis.get("limit_up_detail", {})
+    if lud and lud.get("is_limit_up"):
+        b17 = [
+            f"封板时间: {lud.get('first_limit_time', 'N/A')}  质量: {lud.get('seal_quality', 'N/A')}",
+            f"封板稳定性: {'不稳定，多次开板' if lud.get('unstable') else '稳定'}",
+        ]
+        if lud.get("is_consecutive"):
+            b17.append(f"连板: ✓ {lud.get('consecutive_days', 0)}连板")
+        b17.append(f"建议: {lud.get('detail', '')}")
+        sections.append(Section(title="涨停深度分析", body=b17))
+
+    # ——— 18. 龙虎榜解读（新增） ———
+    dt = analysis.get("dragon_tiger", {})
+    if dt and dt.get("available"):
+        b18 = [
+            f"上榜原因: {dt.get('reason', 'N/A')}",
+            f"买入: {dt.get('buy_amount', 0)/10000:,.0f}万  卖出: {dt.get('sell_amount', 0)/10000:,.0f}万  净额: {dt.get('net_amount', 0)/10000:,.0f}万",
+            f"买卖比: {dt.get('buy_sell_ratio', 'N/A')}  力量: {dt.get('power', 'N/A')}",
+            f"席位分布: {dt.get('seat_pattern', 'N/A')} — {dt.get('seat_desc', '')}",
+        ]
+        if dt.get("aggressive_count", 0) > 0:
+            b18.append(f"⚠ 敢死队席位: {dt['aggressive_count']}个")
+        if dt.get("org_count", 0) > 0:
+            b18.append(f"机构席位: {dt['org_count']}个")
+        b18.append(f"建议: {dt.get('advice', '')}")
+        sections.append(Section(title="龙虎榜解读", body=b18))
+
+    # ——— 19. 盘后复盘（--review 模式） ———
     if review_mode:
         sections.append(_build_review_section(analysis))
 

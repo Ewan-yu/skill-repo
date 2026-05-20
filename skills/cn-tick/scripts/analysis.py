@@ -8,7 +8,8 @@ from indicators import (
     compare_same_period, calc_turnover_rate, get_turnover_rating,
     get_limit_price, split_by_day, extract_hhmm,
     calc_vwap_trend, analyze_white_yellow_relation,
-    build_shrink_decision,
+    build_shrink_decision, calc_market_sentiment, calc_sector_heat,
+    build_limit_up_detail, build_dragon_tiger_analysis,
 )
 
 
@@ -17,6 +18,7 @@ def analyze_support_power(today_data: list[dict], prev_data: list[dict],
     """分析承接力（量价配合判断）
 
     使用 pre_close（昨收）作为价格变动基准。
+    增强版：添加半小时量/1小时量 vs 前一天全天的量化阈值判断。
     """
     if not today_data:
         return {"price_change_pct": 0, "volume_ratio": 0,
@@ -43,10 +45,44 @@ def analyze_support_power(today_data: list[dict], prev_data: list[dict],
     prev_total_amt = sum(d["amount"] for d in prev_same_period) if prev_same_period else 0
     today_total_amt = sum(d["amount"] for d in today_data if d["volume"] > 0)
 
+    # 前一天全天量（用于量化承接力判断）
+    prev_all_day = [d for d in prev_data
+                    if "09:30" <= extract_hhmm(d["time"]) <= "15:00" and d["volume"] > 0]
+    prev_day_total_vol = sum(d["volume"] for d in prev_all_day) if prev_all_day else 0
+    prev_day_total_amt = sum(d["amount"] for d in prev_all_day) if prev_all_day else 0
+
     amt_ratio = today_total_amt / prev_total_amt if prev_total_amt > 0 else None
     vol_ratio = today_total_vol / prev_total_vol if prev_total_vol > 0 else None
     primary_ratio = amt_ratio if amt_ratio is not None else (vol_ratio if vol_ratio is not None else 0)
 
+    # 量化承接力指标（实战手册标准）
+    quantified_signals = []
+    trading_today = [d for d in today_data
+                     if "09:30" <= extract_hhmm(d["time"]) <= "15:00" and d["volume"] > 0]
+
+    # 半小时量 vs 前一天全天
+    open_30_vol = sum(d["volume"] for d in trading_today
+                      if "09:30" <= extract_hhmm(d["time"]) < "10:00")
+    if prev_day_total_vol > 0:
+        open30_vs_prev_day = open_30_vol / prev_day_total_vol
+        if open30_vs_prev_day >= 1.0:
+            quantified_signals.append(f"半小时量达前一天全天{open30_vs_prev_day:.0%}，强承接")
+        elif open30_vs_prev_day >= 0.6:
+            quantified_signals.append(f"半小时量达前一天全天{open30_vs_prev_day:.0%}，承接良好")
+
+    # 1小时量 vs 前一天全天
+    open_60_vol = sum(d["volume"] for d in trading_today
+                      if "09:30" <= extract_hhmm(d["time"]) < "10:30")
+    if prev_day_total_vol > 0:
+        open60_vs_prev_day = open_60_vol / prev_day_total_vol
+        if open60_vs_prev_day >= 0.6:
+            quantified_signals.append(f"1小时量达前一天全天{open60_vs_prev_day:.0%}，承接力良好")
+
+    # 同期缩量判断
+    if primary_ratio is not None and primary_ratio < 0.5:
+        quantified_signals.append(f"同期量能不足前日50%({primary_ratio:.0%})，承接不足")
+
+    # 基础量价判断
     if today_price_change < -0.5:
         if primary_ratio < 0.8:
             signal, power = "缩量回调", "承接力强（主力护盘，散户惜售不抛）"
@@ -74,17 +110,27 @@ def analyze_support_power(today_data: list[dict], prev_data: list[dict],
         "amount_ratio": round(amt_ratio, 2) if amt_ratio is not None else None,
         "signal": signal,
         "power": power,
+        "quantified_signals": quantified_signals,
+        "open30_vs_prev_day": round(open30_vs_prev_day, 3) if prev_day_total_vol > 0 else None,
+        "open60_vs_prev_day": round(open60_vs_prev_day, 3) if prev_day_total_vol > 0 else None,
     }
 
 
 def build_sell_signals(trading_data: list[dict], pre_close: float,
-                       vwap: float, prev_limit_up: bool = None) -> list[dict]:
+                       vwap: float, prev_limit_up: bool = None,
+                       code: str = "") -> list[dict]:
     """基于卖出三部曲生成卖出/持仓信号
 
     1. 前日涨停股: 开盘30分钟不红盘 → 卖出
     2. 前日未涨停股: 开盘1小时不红盘 → 卖出
     3. 冲高回落破VWAP → 卖出
     4. 尾盘不涨停 → 卖出
+
+    特殊情况处理（来自实战手册）：
+    - 庄股/妖股：坚持到尾盘，但涨40-50%后不适用
+    - 成交量超50亿趋势大票：持有到尾盘，破5日线才走
+    - 开盘-4%但分时持续向上+黄线向上：可适当等待
+    - 大利空/快速跌停：-9%止损
     """
     signals = []
     if not trading_data:
@@ -95,9 +141,35 @@ def build_sell_signals(trading_data: list[dict], pre_close: float,
     current_time_str = extract_hhmm(trading_data[-1]["time"])
     day_high = max(d["close"] for d in trading_data)
     max_gain_pct = (day_high - pre_close) / pre_close * 100
+    day_change_pct = (current_price - pre_close) / pre_close * 100
 
+    # 成交额判断（亿元级别）
+    total_amount = sum(d["amount"] for d in trading_data if d["volume"] > 0)
+    amount_yi = total_amount / 1e8
+
+    # VWAP趋势（用于特殊例外判断）
+    vwap_vals = []
+    rv = 0.0
+    rv_vol = 0
+    for d in trading_data:
+        if d["volume"] > 0:
+            rv += d["close"] * d["volume"]
+            rv_vol += d["volume"]
+            if rv_vol > 0:
+                vwap_vals.append(rv / rv_vol)
+    vwap_trend_up = False
+    if len(vwap_vals) >= 10:
+        first_quarter = sum(vwap_vals[:len(vwap_vals)//4]) / (len(vwap_vals)//4)
+        last_quarter = sum(vwap_vals[-len(vwap_vals)//4:]) / (len(vwap_vals)//4)
+        vwap_trend_up = last_quarter > first_quarter
+
+    # === 三部曲第一条：不红盘卖出 ===
     if current_time_str >= "10:00":
-        if prev_limit_up is True:
+        # 特殊例外：开盘大跌但分时持续向上+黄线向上 → 可等待
+        if day_change_pct < -4 and vwap_trend_up and current_time_str < "10:30":
+            signals.append({"type": "持仓建议", "level": "低",
+                             "message": f"开盘跌{day_change_pct:.1f}%但分时持续向上+黄线向上，可适当等待观察"})
+        elif prev_limit_up is True:
             if not is_red:
                 signals.append({"type": "卖出信号", "level": "强",
                                  "message": "前日涨停+开盘30分钟不红盘，按三部曲应卖出"})
@@ -108,22 +180,37 @@ def build_sell_signals(trading_data: list[dict], pre_close: float,
                 signals.append({"type": "卖出信号", "level": "中",
                                  "message": "前日未涨停+开盘1小时不红盘，按三部曲应卖出"})
 
+    # === 三部曲第二条：冲高回落破VWAP ===
     if vwap > 0 and max_gain_pct > 2:
         if current_price < vwap:
             signals.append({"type": "卖出信号", "level": "强",
                              "message": f"盘中最高涨{max_gain_pct:.1f}%后回落破均价线，按三部曲应卖出(锁利)"})
 
+    # === 三部曲第三条：尾盘不涨停 ===
     if current_time_str >= "14:50":
-        limit_up_price = round(pre_close * 1.10, 2)
+        is_kcb_cyb = code.startswith(("68", "30"))
+        limit_pct = 1.20 if is_kcb_cyb else 1.10
+        limit_up_price = round(pre_close * limit_pct, 2)
         if current_price < limit_up_price:
-            signals.append({"type": "持仓建议", "level": "中",
-                             "message": "尾盘未涨停，按三部曲应考虑卖出(除非红盘且趋势向好)"})
+            # 特殊例外：大票（成交额>50亿）破5日线才走
+            if amount_yi > 50:
+                signals.append({"type": "持仓建议", "level": "低",
+                                 "message": f"尾盘未涨停，但成交额{amount_yi:.0f}亿属趋势大票，可持有至破5日线"})
+            else:
+                signals.append({"type": "持仓建议", "level": "中",
+                                 "message": "尾盘未涨停，按三部曲应考虑卖出(除非红盘且趋势向好)"})
 
+    # === 风控：价格偏离VWAP过大 ===
     if vwap > 0:
         deviation = (current_price - vwap) / vwap * 100
         if deviation > 3:
             signals.append({"type": "风控提醒", "level": "中",
                              "message": f"价格高出均价线{deviation:.1f}%，建议卖出部分锁利"})
+
+    # === 极端情况：快速跌停止损 ===
+    if day_change_pct <= -9:
+        signals.append({"type": "风控提醒", "level": "强",
+                         "message": f"盘中跌幅达{day_change_pct:.1f}%，按实战纪律应止损"})
 
     return signals
 
@@ -363,9 +450,15 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
     # 卖出三部曲信号
     sell_signals = []
     if pre_close and pre_close > 0:
-        sell_signals = build_sell_signals(trading_data, pre_close, vwap, prev_limit_up)
+        sell_signals = build_sell_signals(trading_data, pre_close, vwap, prev_limit_up, code)
 
-    # 综合评分
+    # 涨停深度分析
+    limit_up_detail = {}
+    if prev_data_1 and pre_close and pre_close > 0:
+        limit_up_detail = build_limit_up_detail(
+            trading_data, pre_close, code, prev_data_1)
+
+    # 综合评分（大盘/板块修正由 Claude 在融合报告中处理）
     _open_pct = round(open_30["volume"] / total_vol * 100, 1) if total_vol else 0
     _open_amt_ratio = None
     if prev_comparison and "open_30min" in prev_comparison:
@@ -437,4 +530,5 @@ def analyze_minute_volume(minute_data: list[dict], float_shares: int = 0,
             open_pct=_open_pct,
             period_comparisons=prev_comparison,
         ),
+        "limit_up_detail": limit_up_detail,
     }
