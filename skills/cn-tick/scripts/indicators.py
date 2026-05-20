@@ -476,7 +476,7 @@ def get_limit_price(pre_close: float, is_st: bool = False, is_kcb_cyb: bool = Fa
 def calc_vwap_trend(trading_data: list[dict]) -> dict:
     """计算VWAP时间序列并分析黄线走势方向
 
-    返回黄线全天走势：向上/向下/横盘
+    返回黄线全天走势：向上/向下/横盘/震荡，以及趋势强度和波动范围。
     """
     if not trading_data or len(trading_data) < 10:
         return {"trend": "数据不足", "slope": None, "description": "数据点不足，无法判断趋势"}
@@ -507,34 +507,42 @@ def calc_vwap_trend(trading_data: list[dict]) -> dict:
     # 分析VWAP序列趋势
     start_vwap = vwap_series[0]["vwap"]
     end_vwap = vwap_series[-1]["vwap"]
-    mid_vwap = vwap_series[len(vwap_series)//2]["vwap"]
 
     # 提取所有VWAP值用于计算波动范围
     vwap_values = [v["vwap"] for v in vwap_series]
     max_vwap = max(vwap_values)
     min_vwap = min(vwap_values)
 
-    # 计算趋势斜率（元/小时）
+    # 计算趋势斜率（%）
     price_change = end_vwap - start_vwap
     price_change_pct = (price_change / start_vwap * 100) if start_vwap > 0 else 0
+
+    # VWAP波动范围（振幅）
+    vwap_range_pct = ((max_vwap - min_vwap) / start_vwap * 100) if start_vwap > 0 else 0
+
+    # 趋势强度：前半段vs后半段的方向一致性
+    mid_idx = len(vwap_series) // 2
+    first_half_slope = (vwap_series[mid_idx]["vwap"] - start_vwap) / start_vwap * 100 if start_vwap > 0 else 0
+    second_half_slope = (end_vwap - vwap_series[mid_idx]["vwap"]) / vwap_series[mid_idx]["vwap"] * 100 if vwap_series[mid_idx]["vwap"] > 0 else 0
+    consistent = (first_half_slope > 0 and second_half_slope > 0) or (first_half_slope < 0 and second_half_slope < 0)
+    trend_strength = "一致" if consistent else "分歧"
 
     # 判断趋势方向
     if price_change_pct > 0.5:
         trend = "向上"
-        description = f"黄线全天向上({price_change_pct:+.1f}%)，均价成本持续上移，买方主动"
+        strength_desc = "趋势一致" if consistent else "前强后弱" if first_half_slope > 0 else "后段加速"
+        description = f"黄线全天向上({price_change_pct:+.1f}%)，均价成本持续上移，买方主动，{strength_desc}"
     elif price_change_pct < -0.5:
         trend = "向下"
-        description = f"黄线全天向下({price_change_pct:+.1f}%)，均价成本下移，卖方主动"
+        strength_desc = "趋势一致" if consistent else "前弱后强" if first_half_slope < 0 else "后段加速下行"
+        description = f"黄线全天向下({price_change_pct:+.1f}%)，均价成本下移，卖方主动，{strength_desc}"
     else:
-        # 检查波动情况
-        volatility = (max_vwap - min_vwap) / start_vwap * 100 if start_vwap > 0 else 0
-
-        if volatility > 1.0:
+        if vwap_range_pct > 1.0:
             trend = "震荡"
-            description = f"黄线震荡(波动{volatility:.1f}%)，多空激烈博弈"
+            description = f"黄线震荡(振幅{vwap_range_pct:.1f}%)，多空激烈博弈"
         else:
             trend = "横盘"
-            description = f"黄线横盘稳定(波动{volatility:.1f}%)，多空平衡"
+            description = f"黄线横盘稳定(振幅{vwap_range_pct:.1f}%)，多空平衡"
 
     return {
         "trend": trend,
@@ -543,6 +551,8 @@ def calc_vwap_trend(trading_data: list[dict]) -> dict:
         "end_vwap": round(end_vwap, 2),
         "max_vwap": round(max_vwap, 2) if vwap_series else None,
         "min_vwap": round(min_vwap, 2) if vwap_series else None,
+        "vwap_range_pct": round(vwap_range_pct, 2),
+        "trend_strength": trend_strength,
         "description": description,
     }
 
@@ -552,6 +562,7 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
 
     使用逐点累计VWAP与当时价格对比（而非最终VWAP），
     正确反映全天每个时刻的多空状态。
+    增强版：添加交叉次数、当前持续状态、最后交叉时间。
     """
     if not trading_data or vwap <= 0:
         return {
@@ -566,6 +577,13 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
     total_points = 0
     running_value = 0.0
     running_vol = 0
+    cross_count = 0
+    last_cross_time = ""
+    last_cross_direction = ""
+    current_streak = 0
+    current_position = ""  # "above" or "below"
+
+    prev_above = None
 
     # 逐点计算运行VWAP，与当时价格对比（而非最终VWAP）
     for d in trading_data:
@@ -576,10 +594,34 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
             running_vwap = running_value / running_vol
 
             total_points += 1
-            if d["close"] > running_vwap:
+            is_above = d["close"] > running_vwap
+
+            if is_above:
                 above_count += 1
             elif d["close"] < running_vwap:
                 below_count += 1
+
+            # 检测交叉
+            if prev_above is not None and is_above != prev_above:
+                cross_count += 1
+                last_cross_time = extract_hhmm(d["time"])
+                last_cross_direction = "上穿" if is_above else "下穿"
+
+            # 追踪当前持续状态
+            if is_above:
+                if current_position == "above":
+                    current_streak += 1
+                else:
+                    current_position = "above"
+                    current_streak = 1
+            elif d["close"] < running_vwap:
+                if current_position == "below":
+                    current_streak += 1
+                else:
+                    current_position = "below"
+                    current_streak = 1
+
+            prev_above = is_above
 
     if total_points == 0:
         return {
@@ -609,13 +651,18 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
         relation = "长时间在下方"
         description = f"白线{below_ratio:.0f}%时间在黄线下方，空头强势压制"
 
-    # 追加当前位置信息（使用最终VWAP判断当前白黄位置）
+    # 追加当前位置和持续信息
     current_price = trading_data[-1]["close"]
     current_above = current_price > vwap
     if current_above:
         description += "；当前价在均价线上方"
     else:
         description += "；当前价在均价线下方（弱势信号）"
+
+    if cross_count > 0:
+        description += f"；全天交叉{cross_count}次"
+    if last_cross_time:
+        description += f"；最后交叉{last_cross_time}({last_cross_direction})"
 
     return {
         "relation": relation,
@@ -625,6 +672,11 @@ def analyze_white_yellow_relation(trading_data: list[dict], vwap: float) -> dict
         "below_count": below_count,
         "total_points": total_points,
         "current_above": current_above,
+        "cross_count": cross_count,
+        "last_cross_time": last_cross_time,
+        "last_cross_direction": last_cross_direction,
+        "current_streak": current_streak,
+        "current_position": current_position,
         "description": description,
     }
 

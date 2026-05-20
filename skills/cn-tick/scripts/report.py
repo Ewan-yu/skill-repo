@@ -402,9 +402,31 @@ def build_minute_report(analysis: dict, name: str, review_mode: bool = False) ->
         vt = analysis.get("vwap_trend", {})
         wyb = analysis.get("white_yellow_relation", {})
         b1.append(f"均价线(VWAP): {analysis['vwap']:.2f}  走势: {vt.get('trend', 'N/A')}")
+        # VWAP走势详情
+        if vt.get("slope") is not None:
+            range_info = f"振幅{vt.get('vwap_range_pct', 0):.1f}%" if vt.get("vwap_range_pct") else ""
+            strength = vt.get("trend_strength", "")
+            parts = [f"斜率{vt['slope']:+.1f}%"]
+            if range_info:
+                parts.append(range_info)
+            if strength:
+                parts.append(f"趋势{strength}")
+            b1.append(f"  VWAP: {' | '.join(parts)}")
         b1.append(f"当前价 vs 均价: {vi.get('label', 'N/A')}")
+        # 白黄线关系详情
         if wyb.get("description"):
             b1.append(f"白黄线关系: {wyb.get('description', 'N/A')}")
+            # 补充交叉和持续信息
+            cross_info = []
+            if wyb.get("cross_count", 0) > 0:
+                cross_info.append(f"交叉{wyb['cross_count']}次")
+            if wyb.get("last_cross_time"):
+                cross_info.append(f"最后交叉{wyb['last_cross_time']}({wyb['last_cross_direction']})")
+            if wyb.get("current_streak", 0) > 0:
+                pos_label = "上方" if wyb.get("current_position") == "above" else "下方"
+                cross_info.append(f"当前连续在{pos_label}{wyb['current_streak']}个采样点")
+            if cross_info:
+                b1.append(f"  {' | '.join(cross_info)}")
     sections.append(Section(title="基础数据", body=b1))
 
     # ——— 2. 竞价量对比（决策前置） ———
